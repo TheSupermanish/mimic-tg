@@ -71,19 +71,32 @@ export async function decryptSeed(blob: VaultBlob, pin: string): Promise<string>
 // ─── Persistence (Telegram CloudStorage → localStorage fallback) ───────────
 
 function cloud(): any | null {
-  const cs = (window as any).Telegram?.WebApp?.CloudStorage;
-  return cs && typeof cs.setItem === 'function' ? cs : null;
+  const wa = (window as any).Telegram?.WebApp;
+  const cs = wa?.CloudStorage;
+  if (!cs || typeof cs.setItem !== 'function') return null;
+  // CloudStorage needs Bot API 6.9+; older clients throw WebAppMethodUnsupported.
+  if (typeof wa.isVersionAtLeast === 'function' && !wa.isVersionAtLeast('6.9')) return null;
+  return cs;
 }
 
 export async function saveVault(blob: VaultBlob): Promise<void> {
   const json = JSON.stringify(blob);
   const cs = cloud();
   if (cs) {
-    await new Promise<void>((res, rej) =>
-      cs.setItem(STORAGE_KEY, json, (err: unknown) => (err ? rej(err) : res())),
-    );
+    // best-effort: any CloudStorage failure (unsupported version, etc.) falls
+    // back to localStorage below — never blocks wallet creation.
+    try {
+      await new Promise<void>((res, rej) => {
+        try {
+          cs.setItem(STORAGE_KEY, json, (err: unknown) => (err ? rej(err) : res()));
+        } catch (e) {
+          rej(e);
+        }
+      });
+    } catch {
+      /* fall through to localStorage */
+    }
   }
-  // always mirror to localStorage as a fast-path / offline fallback
   try {
     localStorage.setItem(STORAGE_KEY, json);
   } catch {
@@ -94,9 +107,13 @@ export async function saveVault(blob: VaultBlob): Promise<void> {
 export async function loadVault(): Promise<VaultBlob | null> {
   const cs = cloud();
   if (cs) {
-    const val = await new Promise<string>((res, rej) =>
-      cs.getItem(STORAGE_KEY, (err: unknown, v: string) => (err ? rej(err) : res(v))),
-    ).catch(() => '');
+    const val = await new Promise<string>((res, rej) => {
+      try {
+        cs.getItem(STORAGE_KEY, (err: unknown, v: string) => (err ? rej(err) : res(v)));
+      } catch (e) {
+        rej(e);
+      }
+    }).catch(() => '');
     if (val) return JSON.parse(val);
   }
   const local = (() => {
