@@ -47,6 +47,13 @@ app.get<{ Params: { id: string } }>('/markets/:id', async (req, reply) => {
   return c;
 });
 
+// Social leaderboard — global, or scoped to ?addresses=0x..,0x.. (a group's members)
+app.get<{ Querystring: { addresses?: string } }>('/leaderboard', async (req) => {
+  const { leaderboard } = await import('./leaderboard.js');
+  const addrs = req.query.addresses?.split(',').map((a) => a.trim()).filter(Boolean);
+  return { leaderboard: leaderboard(addrs) };
+});
+
 // Resolve a Telegram @username to a wallet address (for directed challenges).
 app.get<{ Params: { username: string } }>('/users/:username', async (req, reply) => {
   const link = getLinkByUsername(req.params.username);

@@ -9,6 +9,8 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.70.0",
+    "@mimic/shared": "*",
     "dotenv": "^16.4.5",
     "grammy": "^1.30.0"
   },

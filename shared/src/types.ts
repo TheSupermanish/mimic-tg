@@ -76,3 +76,14 @@ export interface UserWalletLink {
   username?: string;
   address: string;
 }
+
+/** A single row on the social leaderboard, tallied from settled challenges. */
+export interface LeaderboardEntry {
+  address: string;
+  username?: string;
+  wins: number;
+  losses: number;
+  pushes: number; // draw-refunds — neither side's pick hit
+  net: string; // net USDt in base units (can be negative), as string
+  volume: string; // total USDt staked, base units
+}
