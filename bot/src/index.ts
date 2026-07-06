@@ -3,7 +3,7 @@ import { fromBaseUnits } from '@mimic/shared';
 import { pickLabelFromOutcome } from './format.js';
 import { config } from './config.js';
 import { api } from './api.js';
-import { reply as aiReply, aiEnabled } from './ai.js';
+import { reply as aiReply, aiEnabled, aiMode } from './ai.js';
 
 if (!config.botToken) {
   console.error('TELEGRAM_BOT_TOKEN not set — add it to .env');
@@ -170,5 +170,5 @@ async function configureMenu() {
 bot.catch((err) => console.error('bot error', err));
 
 await configureMenu();
-console.log(`[bot] starting long-polling… (AI: ${aiEnabled() ? 'on' : 'off'})`);
+console.log(`[bot] starting long-polling… (AI: ${aiMode()})`);
 bot.start();

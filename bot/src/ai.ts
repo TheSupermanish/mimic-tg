@@ -3,10 +3,24 @@ import { fromBaseUnits } from '@mimic/shared';
 import { config } from './config.js';
 import { api } from './api.js';
 
-const client = config.geminiApiKey ? new GoogleGenAI({ apiKey: config.geminiApiKey }) : null;
+// Prefer Vertex AI (gcloud Application Default Credentials — no API key).
+// Fall back to an AI Studio API key if no GCP project is configured.
+const client = config.vertexProject
+  ? new GoogleGenAI({
+      vertexai: true,
+      project: config.vertexProject,
+      location: config.vertexLocation,
+    })
+  : config.geminiApiKey
+    ? new GoogleGenAI({ apiKey: config.geminiApiKey })
+    : null;
 
 export function aiEnabled(): boolean {
   return client !== null;
+}
+
+export function aiMode(): string {
+  return config.vertexProject ? `vertex(${config.vertexProject})` : config.geminiApiKey ? 'apikey' : 'off';
 }
 
 // short rolling history per chat so the sidekick has conversational memory.
