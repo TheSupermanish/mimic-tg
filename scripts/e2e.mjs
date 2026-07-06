@@ -4,7 +4,7 @@
 import { readFileSync } from 'fs';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { JsonRpcProvider, Wallet as EthersWallet, Interface, Contract } from 'ethers';
+import { JsonRpcProvider, Wallet as EthersWallet, NonceManager, Interface, Contract } from 'ethers';
 import 'dotenv/config';
 import WDK from '@tetherto/wdk';
 import WalletManagerEvm from '@tetherto/wdk-wallet-evm';
@@ -62,8 +62,15 @@ async function main() {
   log('\n=== MimicTG E2E (Base Sepolia) ===');
   log(`market=${MARKET}\nusdt=${USDT}\n`);
 
-  const funder = new EthersWallet(norm(process.env.DEPLOYER_PRIVATE_KEY), provider);
-  const resolver = new EthersWallet(norm(process.env.RESOLVER_PRIVATE_KEY), provider);
+  // Deployer & resolver may be the same key; when so, share ONE NonceManager so
+  // funding drips and the resolve tx never collide on nonce (flaky public RPC).
+  const deployerW = new EthersWallet(norm(process.env.DEPLOYER_PRIVATE_KEY), provider);
+  const resolverW = new EthersWallet(norm(process.env.RESOLVER_PRIVATE_KEY), provider);
+  const funder = new NonceManager(deployerW);
+  const resolver =
+    deployerW.address.toLowerCase() === resolverW.address.toLowerCase()
+      ? funder
+      : new NonceManager(resolverW);
 
   log('1. Creating two WDK wallets…');
   const alice = await makeWallet('alice ');
@@ -139,6 +146,7 @@ async function main() {
   assert(onchainResult === HOME, 'match resolved to HOME on-chain');
 
   log('\n8. Claim (permissionless) → pays the winner…');
+  const escrowBefore = await tokenBal(MARKET);
   const claimData = marketIface.encodeFunctionData('claim', [challengeId]);
   await mined(await bob.account.sendTransaction({ to: MARKET, value: 0, data: claimData }), 'claim');
 
@@ -149,7 +157,8 @@ async function main() {
   log(`  bob:   ${bStart} -> ${bEnd}  (Δ ${bEnd - bStart})`);
   assert(aEnd - aStart === STAKE, `winner (alice) net +${STAKE} USDt`);
   assert(bStart - bEnd === STAKE, `loser (bob) net -${STAKE} USDt`);
-  assert((await tokenBal(MARKET)) < STAKE * 2n, 'escrow released');
+  // escrow dropped by exactly this pot (other challenges may still be escrowed)
+  assert(escrowBefore - (await tokenBal(MARKET)) === STAKE * 2n, 'escrow released this pot');
 
   await gaslessProof();
 
@@ -167,30 +176,84 @@ async function gaslessProof() {
     log('\n[gasless] PIMLICO_API_KEY not set — skipping gasless proof (set it to verify no-gas UX).');
     return;
   }
-  log('\n=== GASLESS (EIP-7702, sponsored) proof ===');
+  log('\n=== GASLESS (EIP-7702, sponsored) proof — full head-to-head, zero ETH ===');
   const bundlerUrl = `https://api.pimlico.io/v2/${CHAIN_ID}/rpc?apikey=${process.env.PIMLICO_API_KEY}`;
   const delegationAddress = process.env.DELEGATION_ADDRESS || '0xe6Cae83BdE06E4c305530e199D7217f42808555B';
-  const seed = WDK.getRandomSeedPhrase(12);
-  const manager = new WalletManagerEvm7702Gasless(seed, {
-    provider: RPC, bundlerUrl, delegationAddress, isSponsored: true,
-  });
-  const acct = await manager.getAccount(0);
-  const addr = await acct.getAddress();
-  log(`  gasless wallet: ${addr}`);
+  const STAKE = 10_000000n;
 
-  assert((await provider.getBalance(addr)) === 0n, 'wallet starts with ZERO ETH');
-
-  // faucet USDt via a sponsored UserOp (no gas held)
+  const mkGasless = async (label) => {
+    const seed = WDK.getRandomSeedPhrase(12);
+    const manager = new WalletManagerEvm7702Gasless(seed, {
+      provider: RPC, bundlerUrl, delegationAddress, isSponsored: true,
+    });
+    const account = await manager.getAccount(0);
+    const address = await account.getAddress();
+    log(`  ${label}: ${address}`);
+    return { account, address };
+  };
+  // wait for a sponsored UserOp to land
+  const minedOp = async (account, res) => {
+    for (let i = 0; i < 45; i++) {
+      const r = await account.getTransactionReceipt(res.hash).catch(() => null);
+      if (r) return r;
+      await new Promise((r) => setTimeout(r, 2000));
+    }
+    throw new Error('UserOp not mined in time');
+  };
   const faucetData = usdtIface.encodeFunctionData('faucet', []);
-  const res = await acct.sendTransaction({ to: USDT, value: 0, data: faucetData });
-  for (let i = 0; i < 40; i++) {
-    const r = await acct.getTransactionReceipt(res.hash).catch(() => null);
-    if (r) break;
-    await new Promise((r) => setTimeout(r, 2000));
+
+  const g1 = await mkGasless('gasless-A');
+  const g2 = await mkGasless('gasless-B');
+  assert((await provider.getBalance(g1.address)) === 0n && (await provider.getBalance(g2.address)) === 0n,
+    'both wallets start with ZERO ETH');
+
+  // fund USDt gaslessly
+  await minedOp(g1.account, await g1.account.sendTransaction({ to: USDT, value: 0, data: faucetData }));
+  await minedOp(g2.account, await g2.account.sendTransaction({ to: USDT, value: 0, data: faucetData }));
+  const a0 = await g1.account.getTokenBalance(USDT);
+  assert(a0 >= 1000_000000n, `gasless-A funded USDt (${a0})`);
+
+  // A approves + creates a challenge (both sponsored)
+  await minedOp(g1.account, await g1.account.approve({ token: USDT, spender: MARKET, amount: STAKE }));
+  const matchId = `e2e-gasless-${Date.now()}`;
+  const kickoff = Math.floor(Date.now() / 1000) + 3600;
+  const createData = marketIface.encodeFunctionData('createChallenge', [matchId, kickoff, HOME, STAKE, '0x0000000000000000000000000000000000000000']);
+  const createRcpt = await minedOp(g1.account, await g1.account.sendTransaction({ to: MARKET, value: 0, data: createData }));
+  let cid;
+  for (const lg of createRcpt.logs) { try { const p = marketIface.parseLog(lg); if (p?.name === 'ChallengeCreated') cid = Number(p.args.id); } catch {} }
+  assert(cid !== undefined, `gasless challenge created (id=${cid})`);
+
+  // B approves + accepts (both sponsored)
+  await minedOp(g2.account, await g2.account.approve({ token: USDT, spender: MARKET, amount: STAKE }));
+  const acceptData = marketIface.encodeFunctionData('acceptChallenge', [cid, AWAY]);
+  await minedOp(g2.account, await g2.account.sendTransaction({ to: MARKET, value: 0, data: acceptData }));
+
+  // operator resolves (mock) → HOME, then anyone claims (gasless by B)
+  // NonceManager + idempotent verify to ride out flaky public-RPC nonce issues
+  const resolver = new NonceManager(new EthersWallet(norm(process.env.RESOLVER_PRIVATE_KEY), provider));
+  const rc = new Contract(MARKET, marketAbi, resolver);
+  const rcRead = new Contract(MARKET, marketAbi, provider);
+  for (let attempt = 0; attempt < 3; attempt++) {
+    if (Number(await rcRead.matchResult(matchId)) === HOME) break;
+    try {
+      await (await rc.resolve(matchId, HOME)).wait();
+    } catch (e) {
+      /* tolerate 'already known'/nonce — verify state below */
+    }
+    let ok = false;
+    for (let i = 0; i < 8 && !ok; i++) {
+      ok = Number(await rcRead.matchResult(matchId)) === HOME;
+      if (!ok) await new Promise((r) => setTimeout(r, 1500));
+    }
+    if (ok) break;
   }
-  const bal = await acct.getTokenBalance(USDT);
-  assert(bal >= 1000_000000n, `faucet minted USDt gaslessly (${bal})`);
-  assert((await provider.getBalance(addr)) === 0n, 'wallet STILL holds zero ETH (gas was sponsored) ✨');
+  const claimData = marketIface.encodeFunctionData('claim', [cid]);
+  await minedOp(g2.account, await g2.account.sendTransaction({ to: MARKET, value: 0, data: claimData }));
+
+  const a1 = await g1.account.getTokenBalance(USDT);
+  assert(a1 - a0 === STAKE, `winner (gasless-A) net +${STAKE} USDt`);
+  assert((await provider.getBalance(g1.address)) === 0n && (await provider.getBalance(g2.address)) === 0n,
+    'both wallets STILL hold zero ETH — entire bet was gasless ✨');
 }
 
 main().catch((e) => {
