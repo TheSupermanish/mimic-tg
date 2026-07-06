@@ -39,6 +39,7 @@ async function post<T>(path: string, body: unknown): Promise<T> {
 export const api = {
   config: () => get<AppConfig>('/config'),
   matches: () => get<{ matches: Match[] }>('/matches').then((r) => r.matches),
+  match: (id: string) => get<Match>(`/matches/${encodeURIComponent(id)}`),
   markets: (q = '') => get<{ challenges: Challenge[] }>(`/markets${q}`).then((r) => r.challenges),
   market: (id: number) => get<Challenge>(`/markets/${id}`),
   resolveUsername: (username: string) =>

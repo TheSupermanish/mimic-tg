@@ -25,6 +25,13 @@ app.get('/config', async () => ({
 
 app.get('/matches', async () => ({ matches: await getMatches() }));
 
+// Single fixture (from the cached feed — no extra API call). Used by bet deep-links.
+app.get<{ Params: { id: string } }>('/matches/:id', async (req, reply) => {
+  const m = (await getMatches()).find((x) => x.id === req.params.id);
+  if (!m) return reply.code(404).send({ error: 'match not found' });
+  return m;
+});
+
 // Markets, optionally filtered by ?status=open|matched|settled or ?address=0x..
 app.get<{ Querystring: { status?: string; address?: string } }>('/markets', async (req) => {
   let list = allChallenges();

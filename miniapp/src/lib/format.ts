@@ -38,3 +38,31 @@ export function kickoffLabel(iso: string): string {
 export function isBettable(m: Match): boolean {
   return (m.status === 'SCHEDULED' || m.status === 'TIMED') && new Date(m.utcKickoff).getTime() > Date.now();
 }
+
+export function isLive(m: Match): boolean {
+  return m.status === 'IN_PLAY' || m.status === 'PAUSED';
+}
+
+export function hasScore(m: Match): boolean {
+  return typeof m.scoreHome === 'number' && typeof m.scoreAway === 'number';
+}
+
+export function scoreText(m: Match): string {
+  return hasScore(m) ? `${m.scoreHome}–${m.scoreAway}` : '';
+}
+
+/** Short status label for a match badge. */
+export function statusLabel(m: Match): string {
+  switch (m.status) {
+    case 'IN_PLAY':
+      return '🔴 LIVE';
+    case 'PAUSED':
+      return 'HT';
+    case 'FINISHED':
+      return 'FT';
+    case 'POSTPONED':
+      return 'POSTP';
+    default:
+      return kickoffLabel(m.utcKickoff);
+  }
+}

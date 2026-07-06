@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Challenge } from '@mimic/shared';
+import { Challenge, Match } from '@mimic/shared';
 import { useApp } from './state';
 import { Onboarding } from './components/Onboarding';
 import { Unlock } from './components/Unlock';
@@ -8,6 +8,7 @@ import { Matches } from './components/Matches';
 import { Markets } from './components/Markets';
 import { MyBets } from './components/MyBets';
 import { ChallengeCard } from './components/ChallengeCard';
+import { CreateChallenge } from './components/CreateChallenge';
 import { startParam } from './lib/telegram';
 import { api } from './lib/api';
 
@@ -51,15 +52,29 @@ export default function App() {
 function Main() {
   const [tab, setTab] = useState<Tab>('board');
   const [focused, setFocused] = useState<Challenge | null>(null);
+  const [betMatch, setBetMatch] = useState<Match | null>(null);
 
-  // handle deep link accept_<id>
+  // handle deep links: accept_<challengeId> and bet_<matchId>
   useEffect(() => {
     const sp = startParam();
-    if (sp?.action === 'accept' && sp.id != null) {
+    if (!sp) return;
+    if (sp.action === 'accept' && sp.id != null) {
       setTab('board');
       api.market(sp.id).then(setFocused).catch(() => {});
+    } else if ((sp.action === 'bet' || sp.action === 'create') && sp.arg) {
+      api.match(sp.arg).then(setBetMatch).catch(() => {});
     }
   }, []);
+
+  // a bet deep-link opens the create-challenge screen full-width
+  if (betMatch) {
+    return (
+      <div className="app">
+        <WalletHeader />
+        <CreateChallenge match={betMatch} onDone={() => setBetMatch(null)} />
+      </div>
+    );
+  }
 
   return (
     <div className="app">

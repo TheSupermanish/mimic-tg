@@ -2,8 +2,39 @@ import { useState } from 'react';
 import { Match } from '@mimic/shared';
 import { api } from '../lib/api';
 import { usePolling } from '../ui';
-import { kickoffLabel, isBettable } from '../lib/format';
+import { isBettable, isLive, hasScore, scoreText, statusLabel } from '../lib/format';
 import { CreateChallenge } from './CreateChallenge';
+
+function MatchCard({ m, onBet }: { m: Match; onBet?: (m: Match) => void }) {
+  const bettable = !!onBet;
+  const live = isLive(m);
+  return (
+    <div
+      className="card"
+      onClick={bettable ? () => onBet!(m) : undefined}
+      style={bettable ? { cursor: 'pointer' } : undefined}
+    >
+      <div className="comp">
+        <span>{m.competition}</span>
+        <span className={live ? 'pill live' : 'pill'}>{statusLabel(m)}</span>
+      </div>
+      <div className="match-head">
+        <div className="teams">
+          {m.homeCrest && <img src={m.homeCrest} alt="" />}
+          {m.homeTeam}
+          <span className="vs">vs</span>
+          {m.awayCrest && <img src={m.awayCrest} alt="" />}
+          {m.awayTeam}
+        </div>
+        {hasScore(m) ? (
+          <span className="score">{scoreText(m)}</span>
+        ) : bettable ? (
+          <span className="pill open">BET →</span>
+        ) : null}
+      </div>
+    </div>
+  );
+}
 
 export function Matches() {
   const { data: matches, loading } = usePolling<Match[]>(() => api.matches(), 30000);
@@ -11,37 +42,47 @@ export function Matches() {
 
   if (selected) return <CreateChallenge match={selected} onDone={() => setSelected(null)} />;
 
-  const bettable = (matches ?? []).filter(isBettable);
+  const all = matches ?? [];
+  const live = all.filter(isLive);
+  const upcoming = all.filter(isBettable);
+  const finished = all
+    .filter((m) => m.status === 'FINISHED')
+    .sort((a, b) => b.utcKickoff.localeCompare(a.utcKickoff))
+    .slice(0, 8);
 
   return (
     <div>
-      <div className="section-title">Upcoming fixtures</div>
       {loading && !matches && <div className="spinner" />}
-      {!loading && bettable.length === 0 && (
+
+      {live.length > 0 && (
+        <>
+          <div className="section-title">🔴 Live now</div>
+          {live.map((m) => (
+            <MatchCard key={m.id} m={m} />
+          ))}
+        </>
+      )}
+
+      <div className="section-title">Upcoming — tap to bet</div>
+      {!loading && upcoming.length === 0 && (
         <div className="empty">
           No upcoming fixtures right now.
           <br />
           <span className="hint">(Set FOOTBALL_DATA_API_KEY on the backend to load real matches.)</span>
         </div>
       )}
-      {bettable.map((m) => (
-        <div key={m.id} className="card" onClick={() => setSelected(m)} style={{ cursor: 'pointer' }}>
-          <div className="comp">
-            <span>{m.competition}</span>
-            <span>{kickoffLabel(m.utcKickoff)}</span>
-          </div>
-          <div className="match-head">
-            <div className="teams">
-              {m.homeCrest && <img src={m.homeCrest} alt="" />}
-              {m.homeTeam}
-              <span className="vs">vs</span>
-              {m.awayCrest && <img src={m.awayCrest} alt="" />}
-              {m.awayTeam}
-            </div>
-            <span className="pill open">BET →</span>
-          </div>
-        </div>
+      {upcoming.map((m) => (
+        <MatchCard key={m.id} m={m} onBet={setSelected} />
       ))}
+
+      {finished.length > 0 && (
+        <>
+          <div className="section-title">Recent results</div>
+          {finished.map((m) => (
+            <MatchCard key={m.id} m={m} />
+          ))}
+        </>
+      )}
     </div>
   );
 }

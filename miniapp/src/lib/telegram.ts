@@ -33,16 +33,22 @@ export function currentUser(): { id: number; username?: string; firstName?: stri
   return { id: u.id, username: u.username, firstName: u.first_name };
 }
 
-/** Deep-link start param, e.g. "accept_5" → { action: 'accept', id: 5 }. */
-export function startParam(): { action: string; id?: number } | null {
+/**
+ * Deep-link start param.
+ *  "accept_5"     → { action: 'accept', id: 5 }         (challenge id)
+ *  "bet_537034"   → { action: 'bet', arg: '537034' }    (match id, string)
+ */
+export function startParam(): { action: string; id?: number; arg?: string } | null {
   const p =
     tg()?.initDataUnsafe?.start_param ||
     new URLSearchParams(window.location.search).get('startapp') ||
     new URLSearchParams(window.location.hash.replace(/^#/, '')).get('tgWebAppStartParam') ||
     '';
   if (!p) return null;
-  const [action, rest] = p.split('_');
-  return { action, id: rest ? Number(rest) : undefined };
+  const idx = p.indexOf('_');
+  const action = idx === -1 ? p : p.slice(0, idx);
+  const arg = idx === -1 ? '' : p.slice(idx + 1);
+  return { action, arg, id: arg && /^\d+$/.test(arg) ? Number(arg) : undefined };
 }
 
 export function haptic(type: 'success' | 'error' | 'light' = 'light'): void {

@@ -147,8 +147,18 @@ bot.on('message:text', async (ctx) => {
 
   await ctx.replyWithChatAction('typing').catch(() => {});
   try {
-    const answer = await aiReply(ctx.chat.id, clean, ctx.from?.username || ctx.from?.first_name);
-    await ctx.reply(answer, { reply_to_message_id: ctx.message.message_id });
+    const raw = await aiReply(ctx.chat.id, clean, ctx.from?.username || ctx.from?.first_name);
+    // extract an optional one-tap bet marker [[BET:<matchId>]]
+    const betMatch = raw.match(/\[\[BET:(\d+)\]\]/);
+    const answer = raw.replace(/\[\[BET:\d+\]\]/g, '').trim() || '⚽️';
+    let reply_markup;
+    if (betMatch) {
+      const id = betMatch[1];
+      const m = (await api.matches()).find((x) => x.id === id);
+      const label = m ? `🎯 Bet: ${m.homeTeam} v ${m.awayTeam}` : '🎯 Place this bet';
+      reply_markup = launchButton(ctx, label, `bet_${id}`);
+    }
+    await ctx.reply(answer, { reply_to_message_id: ctx.message.message_id, reply_markup });
   } catch (e) {
     console.warn('[ai]', (e as Error).message);
     await ctx.reply('My football brain glitched 😵‍💫 — try again in a sec.');

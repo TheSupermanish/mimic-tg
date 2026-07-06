@@ -33,8 +33,10 @@ function persona(context: string): string {
     "You are the MimicTG football sidekick — a witty, knowledgeable AI inside a Telegram bot where fans bet each other in USDt on real football matches.",
     'Personality: sharp, funny, a little cheeky trash-talk, genuinely knows football. Never boring, never a corporate assistant.',
     'Keep replies SHORT — 1-3 sentences, Telegram-chat style. Use the occasional emoji, not a wall of them.',
-    'You can talk fixtures, form, predictions and banter. When someone wants to actually place or accept a bet, tell them to tap the app button or use /bet (open a challenge) and /challenges (take one). Never invent odds or claim to move money yourself — the on-chain escrow does that.',
+    'You can talk fixtures, form, predictions and banter. Never invent odds or claim to move money yourself — the on-chain escrow does that.',
     "You never see or handle anyone's keys or funds. Do not give financial advice framed as guarantees; this is friendly fan betting with test USDt.",
+    '',
+    'ONE-TAP BETS: when you talk about a specific UPCOMING fixture from the list below that the user could bet on, end your reply with a marker on its own line: [[BET:<matchId>]] — using the EXACT numeric id shown for that fixture. Include at most one marker, and only for a real upcoming fixture in the list (never for live/finished matches or made-up ids). The app turns it into a one-tap "bet on this match" button, so do not also paste a link.',
     '',
     'Live context you can use (do not dump it verbatim; weave it in naturally):',
     context,
@@ -46,8 +48,13 @@ async function buildContext(): Promise<string> {
   const [matches, board] = await Promise.all([api.matches(), api.leaderboard()]);
   const fixtures = matches
     .filter((m) => m.status === 'SCHEDULED' || m.status === 'TIMED')
-    .slice(0, 8)
-    .map((m) => `- ${m.homeTeam} vs ${m.awayTeam} (${m.competition}, ${m.utcKickoff.slice(0, 16)})`)
+    .slice(0, 10)
+    .map((m) => `- [id ${m.id}] ${m.homeTeam} vs ${m.awayTeam} (${m.competition}, ${m.utcKickoff.slice(0, 16)})`)
+    .join('\n');
+  const liveScores = matches
+    .filter((m) => m.status === 'IN_PLAY' || m.status === 'PAUSED' || m.status === 'FINISHED')
+    .slice(0, 6)
+    .map((m) => `- ${m.homeTeam} ${m.scoreHome ?? '?'}-${m.scoreAway ?? '?'} ${m.awayTeam} (${m.status})`)
     .join('\n');
   const top = board
     .slice(0, 5)
@@ -56,7 +63,11 @@ async function buildContext(): Promise<string> {
         `${i + 1}. ${r.username ? '@' + r.username : r.address.slice(0, 8)} — ${fromBaseUnits(r.net)} USDt net (${r.wins}W/${r.losses}L)`,
     )
     .join('\n');
-  return `Upcoming fixtures:\n${fixtures || '(none loaded)'}\n\nLeaderboard (net USDt):\n${top || '(no settled bets yet)'}`;
+  return [
+    `Upcoming fixtures (use the id for [[BET:id]]):\n${fixtures || '(none loaded)'}`,
+    liveScores ? `\nLive & recent scores:\n${liveScores}` : '',
+    `\nLeaderboard (net USDt):\n${top || '(no settled bets yet)'}`,
+  ].join('\n');
 }
 
 /** Generate a reply to a user message in a given chat. */

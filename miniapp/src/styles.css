@@ -205,6 +205,12 @@ body {
   background: rgba(29, 185, 84, 0.22);
   color: var(--pitch);
 }
+.score {
+  font-size: 20px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 1px;
+}
 .pill.lose {
   background: rgba(255, 77, 94, 0.18);
   color: var(--danger);
