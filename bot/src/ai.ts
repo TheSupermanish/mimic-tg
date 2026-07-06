@@ -1,16 +1,17 @@
-import Anthropic from '@anthropic-ai/sdk';
+import { GoogleGenAI, type Content } from '@google/genai';
 import { fromBaseUnits } from '@mimic/shared';
 import { config } from './config.js';
 import { api } from './api.js';
 
-const client = config.anthropicApiKey ? new Anthropic({ apiKey: config.anthropicApiKey }) : null;
+const client = config.geminiApiKey ? new GoogleGenAI({ apiKey: config.geminiApiKey }) : null;
 
 export function aiEnabled(): boolean {
   return client !== null;
 }
 
-// short rolling history per chat so the sidekick has conversational memory
-const history = new Map<number, Anthropic.MessageParam[]>();
+// short rolling history per chat so the sidekick has conversational memory.
+// Gemini uses roles 'user' and 'model'.
+const history = new Map<number, Content[]>();
 const MAX_TURNS = 8;
 
 function persona(context: string): string {
@@ -19,7 +20,7 @@ function persona(context: string): string {
     'Personality: sharp, funny, a little cheeky trash-talk, genuinely knows football. Never boring, never a corporate assistant.',
     'Keep replies SHORT — 1-3 sentences, Telegram-chat style. Use the occasional emoji, not a wall of them.',
     'You can talk fixtures, form, predictions and banter. When someone wants to actually place or accept a bet, tell them to tap the app button or use /bet (open a challenge) and /challenges (take one). Never invent odds or claim to move money yourself — the on-chain escrow does that.',
-    'You never see or handle anyone\'s keys or funds. Do not give financial advice framed as guarantees; this is friendly fan betting with test USDt.',
+    "You never see or handle anyone's keys or funds. Do not give financial advice framed as guarantees; this is friendly fan betting with test USDt.",
     '',
     'Live context you can use (do not dump it verbatim; weave it in naturally):',
     context,
@@ -36,7 +37,10 @@ async function buildContext(): Promise<string> {
     .join('\n');
   const top = board
     .slice(0, 5)
-    .map((r, i) => `${i + 1}. ${r.username ? '@' + r.username : r.address.slice(0, 8)} — ${fromBaseUnits(r.net)} USDt net (${r.wins}W/${r.losses}L)`)
+    .map(
+      (r, i) =>
+        `${i + 1}. ${r.username ? '@' + r.username : r.address.slice(0, 8)} — ${fromBaseUnits(r.net)} USDt net (${r.wins}W/${r.losses}L)`,
+    )
     .join('\n');
   return `Upcoming fixtures:\n${fixtures || '(none loaded)'}\n\nLeaderboard (net USDt):\n${top || '(no settled bets yet)'}`;
 }
@@ -46,23 +50,20 @@ export async function reply(chatId: number, userText: string, userName?: string)
   if (!client) return "My AI brain isn't switched on yet (no API key). But you can still bet — tap the app or use /bet ⚽️";
 
   const turns = history.get(chatId) ?? [];
-  turns.push({ role: 'user', content: userName ? `${userName}: ${userText}` : userText });
+  turns.push({ role: 'user', parts: [{ text: userName ? `${userName}: ${userText}` : userText }] });
 
   const context = await buildContext().catch(() => '(context unavailable)');
-  const res = await client.messages.create({
-    model: 'claude-opus-4-8',
-    max_tokens: 800, // deliberately short — snappy chat replies
-    system: persona(context),
-    messages: turns,
+  const res = await client.models.generateContent({
+    model: config.geminiModel,
+    contents: turns,
+    config: {
+      systemInstruction: persona(context),
+      maxOutputTokens: 800, // deliberately short — snappy chat replies
+    },
   });
 
-  const text = res.content
-    .filter((b): b is Anthropic.TextBlock => b.type === 'text')
-    .map((b) => b.text)
-    .join('')
-    .trim();
-
-  turns.push({ role: 'assistant', content: text });
+  const text = (res.text ?? '').trim();
+  turns.push({ role: 'model', parts: [{ text }] });
   history.set(chatId, turns.slice(-MAX_TURNS * 2));
-  return text || "⚽️";
+  return text || '⚽️';
 }

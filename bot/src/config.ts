@@ -10,5 +10,7 @@ export const config = {
   miniappUrl: process.env.MINIAPP_URL || '',
   botUsername: (process.env.BOT_USERNAME || '').replace(/^@/, ''),
   backendUrl: process.env.BACKEND_PUBLIC_URL || 'http://localhost:8787',
-  anthropicApiKey: process.env.ANTHROPIC_API_KEY || '',
+  // Gemini powers the AI sidekick. GOOGLE_API_KEY is accepted as an alias.
+  geminiApiKey: process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || '',
+  geminiModel: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
 } as const;
