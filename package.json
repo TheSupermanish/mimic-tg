@@ -1,0 +1,31 @@
+{
+  "name": "mimic-tg",
+  "version": "0.1.0",
+  "private": true,
+  "description": "MimicTG — P2P football prediction market on Telegram, powered by Tether WDK self-custodial USDt wallets.",
+  "license": "MIT",
+  "workspaces": [
+    "shared",
+    "contracts",
+    "backend",
+    "bot",
+    "miniapp"
+  ],
+  "scripts": {
+    "build:shared": "npm run build --workspace shared",
+    "test:contracts": "npm run test --workspace contracts",
+    "deploy:contracts": "npm run deploy --workspace contracts",
+    "dev:backend": "npm run dev --workspace backend",
+    "dev:bot": "npm run dev --workspace bot",
+    "dev:miniapp": "npm run dev --workspace miniapp",
+    "dev": "concurrently -n backend,miniapp,bot -c green,cyan,magenta \"npm:dev:backend\" \"npm:dev:miniapp\" \"npm:dev:bot\"",
+    "typecheck": "npm run build --workspace shared && npm run typecheck --workspace backend && npm run typecheck --workspace bot && tsc --noEmit -p miniapp"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0",
+    "playwright": "^1.61.1"
+  }
+}

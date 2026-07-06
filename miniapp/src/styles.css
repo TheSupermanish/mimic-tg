@@ -1,0 +1,372 @@
+:root {
+  --tg-bg: #0f1115;
+  --tg-text: #ffffff;
+  --tg-hint: #8b95a5;
+  --tg-button: #2ea6ff;
+  --tg-button-text: #ffffff;
+  --tg-secondary-bg: #17191f;
+  --pitch: #1db954;
+  --danger: #ff4d5e;
+  --gold: #ffcb45;
+  --radius: 16px;
+  --card: var(--tg-secondary-bg);
+}
+
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+html,
+body,
+#root {
+  margin: 0;
+  height: 100%;
+}
+body {
+  background: var(--tg-bg);
+  color: var(--tg-text);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 15px;
+  line-height: 1.4;
+}
+
+.app {
+  max-width: 520px;
+  margin: 0 auto;
+  padding: 12px 14px 84px;
+}
+
+/* header / balance */
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 2px 14px;
+}
+.brand {
+  font-weight: 800;
+  font-size: 20px;
+  letter-spacing: -0.02em;
+}
+.brand span {
+  color: var(--pitch);
+}
+.balance-card {
+  background: linear-gradient(135deg, #1e7d3a, #0e5a26);
+  border-radius: var(--radius);
+  padding: 18px;
+  margin-bottom: 16px;
+  position: relative;
+  overflow: hidden;
+}
+.balance-card .label {
+  font-size: 13px;
+  opacity: 0.85;
+}
+.balance-card .amount {
+  font-size: 34px;
+  font-weight: 800;
+  margin-top: 2px;
+}
+.balance-card .amount small {
+  font-size: 16px;
+  font-weight: 600;
+  opacity: 0.8;
+}
+.balance-card .addr {
+  font-size: 12px;
+  opacity: 0.75;
+  margin-top: 8px;
+  font-family: ui-monospace, monospace;
+}
+.balance-card .row {
+  display: flex;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+/* buttons */
+.btn {
+  border: 0;
+  border-radius: 12px;
+  padding: 12px 16px;
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--tg-button-text);
+  background: var(--tg-button);
+  cursor: pointer;
+  transition: transform 0.05s, opacity 0.2s;
+}
+.btn:active {
+  transform: scale(0.97);
+}
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.btn.block {
+  width: 100%;
+}
+.btn.ghost {
+  background: rgba(255, 255, 255, 0.14);
+}
+.btn.pitch {
+  background: var(--pitch);
+}
+.btn.gold {
+  background: var(--gold);
+  color: #1a1400;
+}
+.btn.sm {
+  padding: 8px 12px;
+  font-size: 13px;
+  border-radius: 10px;
+}
+
+/* tabs */
+.tabbar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  background: var(--tg-secondary-bg);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 8px 0 calc(8px + env(safe-area-inset-bottom));
+}
+.tabbar button {
+  flex: 1;
+  background: none;
+  border: 0;
+  color: var(--tg-hint);
+  font-size: 12px;
+  font-weight: 600;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  cursor: pointer;
+}
+.tabbar button.active {
+  color: var(--tg-button);
+}
+.tabbar .ico {
+  font-size: 20px;
+}
+
+/* cards */
+.card {
+  background: var(--card);
+  border-radius: var(--radius);
+  padding: 14px;
+  margin-bottom: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+.match-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.teams {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  font-size: 16px;
+}
+.teams img {
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
+}
+.comp {
+  font-size: 12px;
+  color: var(--tg-hint);
+  margin-bottom: 8px;
+  display: flex;
+  justify-content: space-between;
+}
+.pill {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+}
+.pill.live {
+  background: var(--danger);
+}
+.pill.open {
+  background: rgba(46, 166, 255, 0.2);
+  color: var(--tg-button);
+}
+.pill.win {
+  background: rgba(29, 185, 84, 0.22);
+  color: var(--pitch);
+}
+.pill.lose {
+  background: rgba(255, 77, 94, 0.18);
+  color: var(--danger);
+}
+
+/* pick selector */
+.picks {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin: 12px 0;
+}
+.pick {
+  padding: 12px 6px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 2px solid transparent;
+  text-align: center;
+  cursor: pointer;
+  font-weight: 700;
+}
+.pick .sub {
+  display: block;
+  font-size: 11px;
+  color: var(--tg-hint);
+  font-weight: 500;
+  margin-top: 2px;
+}
+.pick.active {
+  border-color: var(--pitch);
+  background: rgba(29, 185, 84, 0.14);
+}
+
+/* forms */
+.field {
+  margin-bottom: 12px;
+}
+.field label {
+  display: block;
+  font-size: 13px;
+  color: var(--tg-hint);
+  margin-bottom: 6px;
+}
+input,
+textarea {
+  width: 100%;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--tg-text);
+  font-size: 16px;
+  font-family: inherit;
+}
+.hint {
+  font-size: 12px;
+  color: var(--tg-hint);
+}
+.error {
+  color: var(--danger);
+  font-size: 13px;
+  margin: 8px 0;
+}
+.seed-box {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px dashed rgba(255, 255, 255, 0.2);
+  border-radius: 12px;
+  padding: 14px;
+  font-family: ui-monospace, monospace;
+  font-size: 15px;
+  line-height: 1.9;
+  word-spacing: 4px;
+}
+
+/* onboarding / centered */
+.center {
+  min-height: 82vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 14px;
+}
+.hero {
+  text-align: center;
+  margin-bottom: 8px;
+}
+.hero .logo {
+  font-size: 54px;
+}
+.hero h1 {
+  font-size: 26px;
+  margin: 8px 0 4px;
+}
+.hero p {
+  color: var(--tg-hint);
+  margin: 0;
+}
+.empty {
+  text-align: center;
+  color: var(--tg-hint);
+  padding: 40px 20px;
+}
+.spinner {
+  width: 26px;
+  height: 26px;
+  border: 3px solid rgba(255, 255, 255, 0.2);
+  border-top-color: var(--tg-button);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  margin: 30px auto;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.toast {
+  position: fixed;
+  bottom: 92px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #000;
+  color: #fff;
+  padding: 10px 16px;
+  border-radius: 12px;
+  font-size: 13px;
+  z-index: 50;
+  max-width: 90%;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.4);
+}
+.pin-input {
+  letter-spacing: 12px;
+  text-align: center;
+  font-size: 24px;
+}
+.section-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--tg-hint);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin: 14px 2px 8px;
+}
+.stake-row {
+  display: flex;
+  gap: 8px;
+}
+.stake-row .chip {
+  flex: 1;
+  padding: 10px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.06);
+  text-align: center;
+  font-weight: 700;
+  cursor: pointer;
+  border: 2px solid transparent;
+}
+.stake-row .chip.active {
+  border-color: var(--tg-button);
+}
+.vs {
+  color: var(--tg-hint);
+  font-weight: 600;
+  padding: 0 4px;
+}

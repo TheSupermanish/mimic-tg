@@ -1,0 +1,7 @@
+{
+  "network": "baseSepolia",
+  "chainId": 84532,
+  "mockUsdt": "0xAD41c65e91d935A8752b5ff2EB15DD73bB2C9565",
+  "predictionMarket": "0x4Cf651a64c30280c2C7DD4Bdead231D2D94903F8",
+  "resolver": "0xeF0131250Fddb51E02684d487F58a14273D8Be40"
+}

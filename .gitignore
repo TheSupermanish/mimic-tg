@@ -1,0 +1,36 @@
+# deps
+node_modules/
+.pnp.*
+
+# env / secrets
+.env
+.env.*
+!.env.example
+
+# builds
+dist/
+build/
+out/
+*.tsbuildinfo
+
+# hardhat
+contracts/artifacts/
+contracts/cache/
+contracts/typechain-types/
+
+# vite / react
+miniapp/dist/
+.vite/
+
+# backend data
+backend/*.sqlite
+backend/data/
+
+# logs / os
+*.log
+npm-debug.log*
+.DS_Store
+
+# editor
+.vscode/
+.idea/

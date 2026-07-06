@@ -1,0 +1,126 @@
+import WDK from '@tetherto/wdk';
+import WalletManagerEvm from '@tetherto/wdk-wallet-evm';
+import { Interface, MaxUint256 } from 'ethers';
+import MarketAbi from '@mimic/shared/src/deployed/abis/PredictionMarket.json';
+import type { Outcome } from '@mimic/shared';
+import type { AppConfig } from './api';
+
+const marketIface = new Interface(MarketAbi as any);
+
+export interface CreateChallengeParams {
+  matchId: string;
+  kickoff: number; // unix seconds
+  pick: Outcome;
+  stake: bigint; // base units
+  opponent?: string | null;
+}
+
+const ZERO = '0x0000000000000000000000000000000000000000';
+
+/**
+ * Thin wrapper around a self-custodial WDK account. All value movement — the
+ * USDt faucet, approvals, placing/accepting bets and claiming — is signed and
+ * submitted through WDK. Contract calls ride WDK's sendTransaction({data}).
+ */
+export class Wallet {
+  // Runtime type is WalletAccountEvm (all EVM methods present, verified in the
+  // browser spike); WDK's core getAccount() surfaces a narrower interface, so we
+  // widen to any here to reach the EVM-specific methods.
+  private account: any;
+  readonly address: string;
+  private cfg: AppConfig;
+
+  private constructor(account: any, address: string, cfg: AppConfig) {
+    this.account = account;
+    this.address = address;
+    this.cfg = cfg;
+  }
+
+  static async fromSeed(seed: string, cfg: AppConfig): Promise<Wallet> {
+    const wdk = new WDK(seed).registerWallet(cfg.wdkChainKey, WalletManagerEvm, {
+      provider: cfg.rpcUrl,
+      chainId: cfg.chainId,
+    });
+    const account: any = await wdk.getAccount(cfg.wdkChainKey, 0);
+    const address = await account.getAddress();
+    return new Wallet(account, address, cfg);
+  }
+
+  // ─── Balances ────────────────────────────────────────────────────────────
+  usdtBalance(): Promise<bigint> {
+    return this.account.getTokenBalance(this.cfg.mockUsdt);
+  }
+  ethBalance(): Promise<bigint> {
+    return this.account.getBalance();
+  }
+
+  // ─── Funding ─────────────────────────────────────────────────────────────
+  /** Mint test USDt from the MockUSDT faucet. */
+  async faucet(): Promise<string> {
+    const data = new Interface(['function faucet()']).encodeFunctionData('faucet', []);
+    const res = await this.account.sendTransaction({ to: this.cfg.mockUsdt, value: 0, data });
+    return res.hash;
+  }
+
+  private async ensureApproval(amount: bigint): Promise<void> {
+    const current: bigint = await this.account.getAllowance(
+      this.cfg.mockUsdt,
+      this.cfg.predictionMarket,
+    );
+    if (current >= amount) return;
+    await this.account.approve({
+      token: this.cfg.mockUsdt,
+      spender: this.cfg.predictionMarket,
+      amount: MaxUint256,
+    });
+  }
+
+  // ─── Betting (contract calls via WDK sendTransaction) ─────────────────────
+  async createChallenge(p: CreateChallengeParams): Promise<string> {
+    await this.ensureApproval(p.stake);
+    const data = marketIface.encodeFunctionData('createChallenge', [
+      p.matchId,
+      p.kickoff,
+      p.pick,
+      p.stake,
+      p.opponent && p.opponent !== '' ? p.opponent : ZERO,
+    ]);
+    const res = await this.account.sendTransaction({
+      to: this.cfg.predictionMarket,
+      value: 0,
+      data,
+    });
+    return res.hash;
+  }
+
+  async acceptChallenge(id: number, pick: Outcome, stake: bigint): Promise<string> {
+    await this.ensureApproval(stake);
+    const data = marketIface.encodeFunctionData('acceptChallenge', [id, pick]);
+    const res = await this.account.sendTransaction({
+      to: this.cfg.predictionMarket,
+      value: 0,
+      data,
+    });
+    return res.hash;
+  }
+
+  async claim(id: number): Promise<string> {
+    const data = marketIface.encodeFunctionData('claim', [id]);
+    const res = await this.account.sendTransaction({
+      to: this.cfg.predictionMarket,
+      value: 0,
+      data,
+    });
+    return res.hash;
+  }
+
+  async cancel(id: number): Promise<string> {
+    const data = marketIface.encodeFunctionData('cancelChallenge', [id]);
+    const res = await this.account.sendTransaction({
+      to: this.cfg.predictionMarket,
+      value: 0,
+      data,
+    });
+    return res.hash;
+  }
+}
