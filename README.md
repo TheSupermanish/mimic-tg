@@ -80,9 +80,18 @@ rebuild is needed after deploying. Set `VITE_BACKEND_URL` if the backend isn't o
 5. When the match finishes, the resolver reads the score from football-data.org, settles on-chain,
    and both players get a Telegram notification. Winner's USDt balance goes up.
 
+## Gasless mode (EIP-7702)
+
+Set `PIMLICO_API_KEY` (free testnet key from [Pimlico](https://dashboard.pimlico.io)) and the
+Mini App automatically switches to `@tetherto/wdk-wallet-evm-7702-gasless`: the user's EOA is
+delegated to a smart account and every action (faucet, approve, bet, claim) is a **sponsored
+UserOperation** — the user needs **zero ETH**. Without the key, it falls back to the standard
+WDK EVM wallet + the backend gas-drip. Verify with `PIMLICO_API_KEY=… node scripts/e2e.mjs`
+(runs a proof that a zero-ETH wallet can faucet + bet).
+
 ## Third-party services
 
-Base Sepolia RPC · football-data.org · Telegram Bot API · Pimlico bundler (gasless stretch only).
+Base Sepolia RPC · football-data.org · Telegram Bot API · Pimlico bundler/paymaster (gasless mode only).
 
 ## License
 

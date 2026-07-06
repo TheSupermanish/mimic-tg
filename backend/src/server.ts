@@ -1,6 +1,6 @@
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
-import { config, assertConfig } from './config.js';
+import { config, assertConfig, gaslessConfig } from './config.js';
 import { CHAIN, fromBaseUnits, Outcome, ChallengeStatus } from '@mimic/shared';
 import { getMatches } from './football.js';
 import { startIndexer } from './indexer.js';
@@ -20,6 +20,7 @@ app.get('/config', async () => ({
   wdkChainKey: CHAIN.wdkChainKey,
   mockUsdt: config.mockUsdtAddress,
   predictionMarket: config.predictionMarketAddress,
+  gasless: gaslessConfig(),
 }));
 
 app.get('/matches', async () => ({ matches: await getMatches() }));

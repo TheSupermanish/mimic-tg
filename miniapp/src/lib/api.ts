@@ -1,5 +1,12 @@
 import type { Challenge, Match, TelegramUser } from '@mimic/shared';
 
+export interface GaslessConfig {
+  bundlerUrl: string;
+  delegationAddress: string;
+  isSponsored: boolean;
+  sponsorshipPolicyId?: string;
+}
+
 export interface AppConfig {
   chainId: number;
   rpcUrl: string;
@@ -7,6 +14,7 @@ export interface AppConfig {
   wdkChainKey: string;
   mockUsdt: string;
   predictionMarket: string;
+  gasless: GaslessConfig | null;
 }
 
 const BASE = (import.meta.env.VITE_BACKEND_URL as string) || 'http://localhost:8787';

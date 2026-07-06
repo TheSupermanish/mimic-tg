@@ -1,5 +1,6 @@
 import WDK from '@tetherto/wdk';
 import WalletManagerEvm from '@tetherto/wdk-wallet-evm';
+import WalletManagerEvm7702Gasless from '@tetherto/wdk-wallet-evm-7702-gasless';
 import { Interface, MaxUint256 } from 'ethers';
 import MarketAbi from '@mimic/shared/src/deployed/abis/PredictionMarket.json';
 import type { Outcome } from '@mimic/shared';
@@ -28,22 +29,40 @@ export class Wallet {
   // widen to any here to reach the EVM-specific methods.
   private account: any;
   readonly address: string;
+  readonly gasless: boolean;
   private cfg: AppConfig;
 
-  private constructor(account: any, address: string, cfg: AppConfig) {
+  private constructor(account: any, address: string, cfg: AppConfig, gasless: boolean) {
     this.account = account;
     this.address = address;
     this.cfg = cfg;
+    this.gasless = gasless;
   }
 
   static async fromSeed(seed: string, cfg: AppConfig): Promise<Wallet> {
+    // Gasless (EIP-7702) mode when the backend provides Pimlico config — the
+    // user pays no gas (UserOps sponsored by the paymaster). The account surface
+    // is identical to the standard EVM account, so everything below is unchanged.
+    if (cfg.gasless) {
+      const manager: any = new WalletManagerEvm7702Gasless(seed, {
+        provider: cfg.rpcUrl,
+        bundlerUrl: cfg.gasless.bundlerUrl,
+        delegationAddress: cfg.gasless.delegationAddress,
+        isSponsored: true,
+        sponsorshipPolicyId: cfg.gasless.sponsorshipPolicyId,
+      } as any);
+      const account: any = await manager.getAccount(0);
+      const address = await account.getAddress();
+      return new Wallet(account, address, cfg, true);
+    }
+
     const wdk = new WDK(seed).registerWallet(cfg.wdkChainKey, WalletManagerEvm, {
       provider: cfg.rpcUrl,
       chainId: cfg.chainId,
     });
     const account: any = await wdk.getAccount(cfg.wdkChainKey, 0);
     const address = await account.getAddress();
-    return new Wallet(account, address, cfg);
+    return new Wallet(account, address, cfg, false);
   }
 
   // ─── Balances ────────────────────────────────────────────────────────────

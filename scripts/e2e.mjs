@@ -8,6 +8,7 @@ import { JsonRpcProvider, Wallet as EthersWallet, Interface, Contract } from 'et
 import 'dotenv/config';
 import WDK from '@tetherto/wdk';
 import WalletManagerEvm from '@tetherto/wdk-wallet-evm';
+import WalletManagerEvm7702Gasless from '@tetherto/wdk-wallet-evm-7702-gasless';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const R = (p) => resolve(__dirname, p);
@@ -150,8 +151,46 @@ async function main() {
   assert(bStart - bEnd === STAKE, `loser (bob) net -${STAKE} USDt`);
   assert((await tokenBal(MARKET)) < STAKE * 2n, 'escrow released');
 
+  await gaslessProof();
+
   log(`\n=== ${failures === 0 ? 'ALL PASS ✅' : failures + ' FAILURE(S) ❌'} ===\n`);
   process.exit(failures === 0 ? 0 : 1);
+}
+
+/**
+ * Gasless (EIP-7702) proof — runs only if PIMLICO_API_KEY is set. Creates a
+ * wallet with ZERO ETH, faucets USDt and settles a bet entirely via sponsored
+ * UserOperations, proving the user never needs a gas token.
+ */
+async function gaslessProof() {
+  if (!process.env.PIMLICO_API_KEY) {
+    log('\n[gasless] PIMLICO_API_KEY not set — skipping gasless proof (set it to verify no-gas UX).');
+    return;
+  }
+  log('\n=== GASLESS (EIP-7702, sponsored) proof ===');
+  const bundlerUrl = `https://api.pimlico.io/v2/${CHAIN_ID}/rpc?apikey=${process.env.PIMLICO_API_KEY}`;
+  const delegationAddress = process.env.DELEGATION_ADDRESS || '0xe6Cae83BdE06E4c305530e199D7217f42808555B';
+  const seed = WDK.getRandomSeedPhrase(12);
+  const manager = new WalletManagerEvm7702Gasless(seed, {
+    provider: RPC, bundlerUrl, delegationAddress, isSponsored: true,
+  });
+  const acct = await manager.getAccount(0);
+  const addr = await acct.getAddress();
+  log(`  gasless wallet: ${addr}`);
+
+  assert((await provider.getBalance(addr)) === 0n, 'wallet starts with ZERO ETH');
+
+  // faucet USDt via a sponsored UserOp (no gas held)
+  const faucetData = usdtIface.encodeFunctionData('faucet', []);
+  const res = await acct.sendTransaction({ to: USDT, value: 0, data: faucetData });
+  for (let i = 0; i < 40; i++) {
+    const r = await acct.getTransactionReceipt(res.hash).catch(() => null);
+    if (r) break;
+    await new Promise((r) => setTimeout(r, 2000));
+  }
+  const bal = await acct.getTokenBalance(USDT);
+  assert(bal >= 1000_000000n, `faucet minted USDt gaslessly (${bal})`);
+  assert((await provider.getBalance(addr)) === 0n, 'wallet STILL holds zero ETH (gas was sponsored) ✨');
 }
 
 main().catch((e) => {

@@ -37,7 +37,25 @@ export const config = {
 
   botToken: process.env.TELEGRAM_BOT_TOKEN || '',
   miniappUrl: process.env.MINIAPP_URL || '',
+
+  // Gasless (EIP-7702) — enabled when a Pimlico key is present.
+  pimlicoApiKey: process.env.PIMLICO_API_KEY || '',
+  // EIP-7702 delegate (SimpleAccount) — same address across chains; overridable.
+  delegationAddress:
+    process.env.DELEGATION_ADDRESS || '0xe6Cae83BdE06E4c305530e199D7217f42808555B',
+  sponsorshipPolicyId: process.env.PIMLICO_SPONSORSHIP_POLICY_ID || '',
 } as const;
+
+/** Gasless config surfaced to the Mini App (null when not configured). */
+export function gaslessConfig() {
+  if (!config.pimlicoApiKey) return null;
+  return {
+    bundlerUrl: `https://api.pimlico.io/v2/${config.chainId}/rpc?apikey=${config.pimlicoApiKey}`,
+    delegationAddress: config.delegationAddress,
+    isSponsored: true,
+    sponsorshipPolicyId: config.sponsorshipPolicyId || undefined,
+  };
+}
 
 export function assertConfig(keys: (keyof typeof config)[]): void {
   const missing = keys.filter((k) => !config[k]);

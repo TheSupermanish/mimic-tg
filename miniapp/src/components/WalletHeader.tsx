@@ -15,7 +15,14 @@ export function WalletHeader() {
 
   return (
     <div className="balance-card">
-      <div className="label">Your balance{username ? ` · @${username}` : ''}</div>
+      <div className="label">
+        Your balance{username ? ` · @${username}` : ''}
+        {wallet.gasless && (
+          <span className="pill" style={{ marginLeft: 8, background: 'rgba(255,203,69,0.25)', color: 'var(--gold)' }}>
+            ⚡ Gasless
+          </span>
+        )}
+      </div>
       <div className="amount">
         {balance !== undefined ? usdt(balance) : '—'} <small>USDt</small>
       </div>
