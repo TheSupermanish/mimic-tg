@@ -17,7 +17,9 @@ export interface AppConfig {
   gasless: GaslessConfig | null;
 }
 
-const BASE = (import.meta.env.VITE_BACKEND_URL as string) || 'http://localhost:8787';
+// Default to same-origin '/api' (proxied to the backend by Vite) so the app
+// works both on localhost and when served through a public tunnel.
+const BASE = (import.meta.env.VITE_BACKEND_URL as string) || '/api';
 
 async function get<T>(path: string): Promise<T> {
   const res = await fetch(`${BASE}${path}`);

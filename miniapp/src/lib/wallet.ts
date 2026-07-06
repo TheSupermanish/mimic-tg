@@ -73,25 +73,46 @@ export class Wallet {
     return this.account.getBalance();
   }
 
+  /** Wait for a submitted tx / UserOp to be mined (works for both wallet modes). */
+  private async waitMined(hash: string): Promise<void> {
+    for (let i = 0; i < 60; i++) {
+      const r = await this.account.getTransactionReceipt(hash).catch(() => null);
+      if (r) return;
+      await new Promise((res) => setTimeout(res, 2000));
+    }
+    throw new Error('Transaction not confirmed in time — please retry');
+  }
+
+  private send(data: string) {
+    return this.account.sendTransaction({ to: this.cfg.predictionMarket, value: 0, data });
+  }
+
   // ─── Funding ─────────────────────────────────────────────────────────────
   /** Mint test USDt from the MockUSDT faucet. */
   async faucet(): Promise<string> {
     const data = new Interface(['function faucet()']).encodeFunctionData('faucet', []);
     const res = await this.account.sendTransaction({ to: this.cfg.mockUsdt, value: 0, data });
+    await this.waitMined(res.hash);
     return res.hash;
   }
 
+  /**
+   * Ensure the market is approved for `amount`, waiting until the approval is
+   * MINED — otherwise a dependent createChallenge/accept would be simulated
+   * against a stale (zero) allowance and fail gas estimation.
+   */
   private async ensureApproval(amount: bigint): Promise<void> {
     const current: bigint = await this.account.getAllowance(
       this.cfg.mockUsdt,
       this.cfg.predictionMarket,
     );
     if (current >= amount) return;
-    await this.account.approve({
+    const res = await this.account.approve({
       token: this.cfg.mockUsdt,
       spender: this.cfg.predictionMarket,
       amount: MaxUint256,
     });
+    if (res?.hash) await this.waitMined(res.hash);
   }
 
   // ─── Betting (contract calls via WDK sendTransaction) ─────────────────────
@@ -104,42 +125,27 @@ export class Wallet {
       p.stake,
       p.opponent && p.opponent !== '' ? p.opponent : ZERO,
     ]);
-    const res = await this.account.sendTransaction({
-      to: this.cfg.predictionMarket,
-      value: 0,
-      data,
-    });
+    const res = await this.send(data);
+    await this.waitMined(res.hash);
     return res.hash;
   }
 
   async acceptChallenge(id: number, pick: Outcome, stake: bigint): Promise<string> {
     await this.ensureApproval(stake);
-    const data = marketIface.encodeFunctionData('acceptChallenge', [id, pick]);
-    const res = await this.account.sendTransaction({
-      to: this.cfg.predictionMarket,
-      value: 0,
-      data,
-    });
+    const res = await this.send(marketIface.encodeFunctionData('acceptChallenge', [id, pick]));
+    await this.waitMined(res.hash);
     return res.hash;
   }
 
   async claim(id: number): Promise<string> {
-    const data = marketIface.encodeFunctionData('claim', [id]);
-    const res = await this.account.sendTransaction({
-      to: this.cfg.predictionMarket,
-      value: 0,
-      data,
-    });
+    const res = await this.send(marketIface.encodeFunctionData('claim', [id]));
+    await this.waitMined(res.hash);
     return res.hash;
   }
 
   async cancel(id: number): Promise<string> {
-    const data = marketIface.encodeFunctionData('cancelChallenge', [id]);
-    const res = await this.account.sendTransaction({
-      to: this.cfg.predictionMarket,
-      value: 0,
-      data,
-    });
+    const res = await this.send(marketIface.encodeFunctionData('cancelChallenge', [id]));
+    await this.waitMined(res.hash);
     return res.hash;
   }
 }

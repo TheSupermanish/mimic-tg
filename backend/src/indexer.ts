@@ -57,7 +57,7 @@ export async function reindex(): Promise<Challenge[]> {
 }
 
 /** Poll loop to keep the challenge cache fresh. */
-export function startIndexer(intervalMs = 15_000): void {
+export function startIndexer(intervalMs = 6_000): void {
   const tick = () =>
     reindex().catch((e) => console.warn('[indexer]', (e as Error).message));
   tick();

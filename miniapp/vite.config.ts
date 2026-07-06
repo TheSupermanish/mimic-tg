@@ -16,9 +16,18 @@ export default defineConfig({
     global: 'globalThis',
   },
   server: {
-    host: true, // needed for ngrok / device testing
+    host: true, // needed for tunnel / device testing
     port: 5173,
     allowedHosts: true,
+    // so the Mini App (loaded via a public tunnel) can reach the backend
+    // same-origin: it calls /api/* and Vite forwards to the local backend.
+    proxy: {
+      '/api': {
+        target: 'http://localhost:8787',
+        changeOrigin: true,
+        rewrite: (p) => p.replace(/^\/api/, ''),
+      },
+    },
   },
   build: {
     target: 'es2020',
