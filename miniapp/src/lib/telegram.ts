@@ -35,20 +35,24 @@ export function currentUser(): { id: number; username?: string; firstName?: stri
 
 /**
  * Deep-link start param.
- *  "accept_5"     → { action: 'accept', id: 5 }         (challenge id)
- *  "bet_537034"   → { action: 'bet', arg: '537034' }    (match id, string)
+ *  "accept_5"          → { action: 'accept', id: 5 }                 (challenge id)
+ *  "bet_537034"        → { action: 'bet', arg: '537034' }            (match id)
+ *  "bet_537034_home"   → { action: 'bet', arg: '537034', pick: 'home' } (pre-selected pick)
  */
-export function startParam(): { action: string; id?: number; arg?: string } | null {
+export function startParam(): {
+  action: string;
+  id?: number;
+  arg?: string;
+  pick?: string;
+} | null {
   const p =
     tg()?.initDataUnsafe?.start_param ||
     new URLSearchParams(window.location.search).get('startapp') ||
     new URLSearchParams(window.location.hash.replace(/^#/, '')).get('tgWebAppStartParam') ||
     '';
   if (!p) return null;
-  const idx = p.indexOf('_');
-  const action = idx === -1 ? p : p.slice(0, idx);
-  const arg = idx === -1 ? '' : p.slice(idx + 1);
-  return { action, arg, id: arg && /^\d+$/.test(arg) ? Number(arg) : undefined };
+  const [action, arg = '', pick] = p.split('_');
+  return { action, arg, pick, id: arg && /^\d+$/.test(arg) ? Number(arg) : undefined };
 }
 
 export function haptic(type: 'success' | 'error' | 'light' = 'light'): void {
@@ -62,14 +66,8 @@ export function haptic(type: 'success' | 'error' | 'light' = 'light'): void {
 function applyTheme(): void {
   const w = tg();
   if (!w) return;
-  const p = w.themeParams || {};
-  const root = document.documentElement;
-  const set = (k: string, v?: string) => v && root.style.setProperty(k, v);
-  set('--tg-bg', p.bg_color);
-  set('--tg-text', p.text_color);
-  set('--tg-hint', p.hint_color);
-  set('--tg-button', p.button_color);
-  set('--tg-button-text', p.button_text_color);
-  set('--tg-secondary-bg', p.secondary_bg_color);
-  if (w.colorScheme) root.setAttribute('data-theme', w.colorScheme);
+  // MimicTG keeps its own brand identity (dark canvas + yellow accent) rather
+  // than adopting the user's Telegram theme — otherwise the look changes per
+  // user. We only record the color scheme in case we ever want to react to it.
+  if (w.colorScheme) document.documentElement.setAttribute('data-theme', w.colorScheme);
 }

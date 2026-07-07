@@ -15,12 +15,26 @@ export default defineConfig({
   define: {
     global: 'globalThis',
   },
+  // /api is proxied to the local backend so the tunnel-served app calls it
+  // same-origin. Shared by dev and preview.
   server: {
     host: true, // needed for tunnel / device testing
     port: 5173,
     allowedHosts: true,
-    // so the Mini App (loaded via a public tunnel) can reach the backend
-    // same-origin: it calls /api/* and Vite forwards to the local backend.
+    proxy: {
+      '/api': {
+        target: 'http://localhost:8787',
+        changeOrigin: true,
+        rewrite: (p) => p.replace(/^\/api/, ''),
+      },
+    },
+  },
+  // Production build served over the tunnel (bundled → fast load, unlike dev's
+  // hundreds of unbundled module requests). Same /api proxy as dev.
+  preview: {
+    host: true,
+    port: 5173,
+    allowedHosts: true,
     proxy: {
       '/api': {
         target: 'http://localhost:8787',

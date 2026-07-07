@@ -20,9 +20,32 @@ export function Onboarding() {
         <div className="hero">
           <div className="logo">⚽️</div>
           <h1>
-            Mimic<span style={{ color: 'var(--pitch)' }}>TG</span>
+            Mimic<span style={{ color: 'var(--accent)' }}>TG</span>
           </h1>
           <p>Bet your mates on football. Your keys, your USDt.</p>
+        </div>
+        <div className="features">
+          <div className="feature">
+            <span className="fico">🤝</span>
+            <span className="ftext">
+              <b>Challenge anyone</b>
+              <span>Head-to-head bets in USDt — winner takes the pot.</span>
+            </span>
+          </div>
+          <div className="feature">
+            <span className="fico">⚡</span>
+            <span className="ftext">
+              <b>Gasless</b>
+              <span>No ETH needed — we sponsor the gas for you.</span>
+            </span>
+          </div>
+          <div className="feature">
+            <span className="fico">🔒</span>
+            <span className="ftext">
+              <b>Self-custodial</b>
+              <span>Powered by Tether WDK. We never see your keys.</span>
+            </span>
+          </div>
         </div>
         <button className="btn pitch block" onClick={() => setStep('pin')}>
           Create a wallet
@@ -30,9 +53,6 @@ export function Onboarding() {
         <button className="btn ghost block" onClick={() => setStep('import')}>
           I have a recovery phrase
         </button>
-        <p className="hint" style={{ textAlign: 'center' }}>
-          Self-custodial, powered by Tether WDK. We never see your keys.
-        </p>
       </div>
     );
   }
@@ -84,7 +104,17 @@ export function Onboarding() {
           <h1>Back up your phrase</h1>
           <p>Write these 12 words down. They're the only way to recover your funds.</p>
         </div>
-        <div className="seed-box">{seed}</div>
+        <div className="seed-grid">
+          {seed
+            .trim()
+            .split(/\s+/)
+            .map((w, i) => (
+              <div className="seed-word" key={i}>
+                <span className="n">{i + 1}</span>
+                {w}
+              </div>
+            ))}
+        </div>
         <button
           className="btn pitch block"
           disabled={pending}

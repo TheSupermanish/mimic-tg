@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Challenge, Match } from '@mimic/shared';
+import { Challenge, Match, Outcome } from '@mimic/shared';
 import { useApp } from './state';
 import { Onboarding } from './components/Onboarding';
 import { Unlock } from './components/Unlock';
@@ -53,8 +53,9 @@ function Main() {
   const [tab, setTab] = useState<Tab>('board');
   const [focused, setFocused] = useState<Challenge | null>(null);
   const [betMatch, setBetMatch] = useState<Match | null>(null);
+  const [betPick, setBetPick] = useState<Outcome | null>(null);
 
-  // handle deep links: accept_<challengeId> and bet_<matchId>
+  // handle deep links: accept_<challengeId>, bet_<matchId>, bet_<matchId>_<pick>
   useEffect(() => {
     const sp = startParam();
     if (!sp) return;
@@ -62,6 +63,12 @@ function Main() {
       setTab('board');
       api.market(sp.id).then(setFocused).catch(() => {});
     } else if ((sp.action === 'bet' || sp.action === 'create') && sp.arg) {
+      const pickMap: Record<string, Outcome> = {
+        home: Outcome.Home,
+        draw: Outcome.Draw,
+        away: Outcome.Away,
+      };
+      if (sp.pick && pickMap[sp.pick]) setBetPick(pickMap[sp.pick]);
       api.match(sp.arg).then(setBetMatch).catch(() => {});
     }
   }, []);
@@ -71,7 +78,7 @@ function Main() {
     return (
       <div className="app">
         <WalletHeader />
-        <CreateChallenge match={betMatch} onDone={() => setBetMatch(null)} />
+        <CreateChallenge match={betMatch} initialPick={betPick} onDone={() => setBetMatch(null)} />
       </div>
     );
   }

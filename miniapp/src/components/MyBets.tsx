@@ -24,7 +24,13 @@ export function MyBets() {
     <div>
       {loading && !challenges && <div className="spinner" />}
       {!loading && list.length === 0 && (
-        <div className="empty">You haven't placed any bets yet.</div>
+        <div className="empty">
+          <div style={{ fontSize: 44, marginBottom: 8 }}>🎟️</div>
+          <div style={{ fontWeight: 700, fontSize: 16, color: 'var(--tg-text)' }}>No bets yet</div>
+          <div className="hint" style={{ marginTop: 4 }}>
+            Head to the <b>Board</b> to take a challenge, or <b>Fixtures</b> to post your own.
+          </div>
+        </div>
       )}
       {active.length > 0 && <div className="section-title">Active</div>}
       {active.map((c) => (

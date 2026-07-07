@@ -7,10 +7,18 @@ import { pickLabel, kickoffLabel } from '../lib/format';
 
 const STAKES = ['5', '10', '25', '50'];
 
-export function CreateChallenge({ match, onDone }: { match: Match; onDone: () => void }) {
+export function CreateChallenge({
+  match,
+  onDone,
+  initialPick = null,
+}: {
+  match: Match;
+  onDone: () => void;
+  initialPick?: Outcome | null;
+}) {
   const { wallet } = useApp();
   const { pending, run } = useAction();
-  const [pick, setPick] = useState<Outcome | null>(null);
+  const [pick, setPick] = useState<Outcome | null>(initialPick);
   const [stake, setStake] = useState('10');
   const [opponent, setOpponent] = useState('');
   const [err, setErr] = useState('');
@@ -83,9 +91,12 @@ export function CreateChallenge({ match, onDone }: { match: Match; onDone: () =>
           <input
             value={opponent}
             onChange={(e) => setOpponent(e.target.value)}
-            placeholder="@username — or leave blank for anyone"
+            placeholder="@username"
           />
-          <div className="hint">Winner takes the whole pot. Draw-both refunds if neither pick hits.</div>
+          <div className="hint">
+            Leave blank to open it to anyone. Winner takes the whole pot; draw-both refunds if
+            neither pick hits.
+          </div>
         </div>
 
         {err && <div className="error">{err}</div>}
