@@ -34,3 +34,6 @@ npm-debug.log*
 # editor
 .vscode/
 .idea/
+
+# runtime data (wallet links)
+backend/.data/

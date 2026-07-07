@@ -23,6 +23,7 @@ export const config = {
   port: Number(process.env.BACKEND_PORT ?? 8787),
   rpcUrl: process.env.BASE_SEPOLIA_RPC ?? 'https://sepolia.base.org',
   chainId: Number(process.env.CHAIN_ID ?? 84532),
+  explorer: process.env.EXPLORER_URL ?? 'https://sepolia.basescan.org',
 
   mockUsdtAddress: process.env.MOCK_USDT_ADDRESS || deployed.mockUsdt || '',
   predictionMarketAddress: process.env.PREDICTION_MARKET_ADDRESS || deployed.predictionMarket || '',
@@ -31,12 +32,23 @@ export const config = {
     return k && !k.startsWith('0x') ? `0x${k}` : k;
   })(),
 
+  // Gemini (AI market resolver). Prefer Vertex AI via gcloud ADC / service account;
+  // falls back to an AI Studio API key. Mirrors the bot's AI config.
+  vertexProject: process.env.GOOGLE_CLOUD_PROJECT || process.env.VERTEX_PROJECT || '',
+  vertexLocation: process.env.GOOGLE_CLOUD_LOCATION || process.env.VERTEX_LOCATION || 'global',
+  geminiApiKey: process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || '',
+  geminiModel: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
+
   footballApiKey: process.env.FOOTBALL_DATA_API_KEY || '',
   // football-data.org competition codes to surface fixtures from.
   competitions: (process.env.FOOTBALL_COMPETITIONS || 'PL,CL,PD,BL1,SA,FL1').split(','),
 
   botToken: process.env.TELEGRAM_BOT_TOKEN || '',
+  botUsername: (process.env.BOT_USERNAME || '').replace(/^@/, ''),
   miniappUrl: process.env.MINIAPP_URL || '',
+  // Secret guarding admin/internal endpoints (e.g. manual resolve). When unset,
+  // those endpoints are disabled rather than left open to the public.
+  adminSecret: process.env.ADMIN_SECRET || '',
 
   // Gasless (EIP-7702) — enabled when a Pimlico key is present.
   pimlicoApiKey: process.env.PIMLICO_API_KEY || '',

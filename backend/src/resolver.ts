@@ -1,13 +1,17 @@
 import { ChallengeStatus, Outcome } from '@mimic/shared';
 import { marketResolver, marketReader } from './chain.js';
 import { getMatches } from './football.js';
-import { allChallenges } from './store.js';
+import { allChallenges, setResolution, getResolution } from './store.js';
+import { aiResolve } from './ai-resolver.js';
 
 export interface SettlementEvent {
   challengeId: number;
   winner: string | null; // null = refund (draw / neither pick)
   matchId: string;
   result: Outcome;
+  rationale?: string; // how it was resolved (AI)
+  source?: string;
+  txHash?: string; // the on-chain settlement (claim) tx
 }
 
 type OnSettled = (e: SettlementEvent) => void;
@@ -33,18 +37,65 @@ export async function runResolverTick(onSettled?: OnSettled): Promise<void> {
   const fixtures = await getMatches().catch(() => []);
   const byId = new Map(fixtures.map((m) => [m.id, m]));
 
-  // 1. resolve finished fixtures
+  // 1. resolve finished fixtures — AI verdict, with the score as ground truth
   for (const matchId of matchedMatchIds) {
     const onchain = Number(await reader.matchResult(matchId)) as Outcome;
     if (onchain !== Outcome.Pending) continue; // already resolved
 
     const match = byId.get(matchId);
-    if (!match || match.status !== 'FINISHED' || !match.result) continue;
+    if (!match || match.status !== 'FINISHED') continue;
+
+    const scoreOutcome = (match.result ?? Outcome.Pending) as Outcome;
+    const verdict = await aiResolve(match); // corroboration + rationale (+ edge cases)
+
+    // Decide the final outcome. Score is authoritative when present; AI supplies
+    // the human-readable rationale and can resolve when no score is available.
+    let finalOutcome = scoreOutcome;
+    let rationale =
+      match.scoreHome != null ? `Full-time ${match.homeTeam} ${match.scoreHome}–${match.scoreAway} ${match.awayTeam}.` : '';
+    let source = 'football-data.org';
+    let byAi = false;
+
+    if (scoreOutcome !== Outcome.Pending) {
+      if (verdict) {
+        byAi = true;
+        rationale = verdict.rationale || rationale;
+        source = verdict.source || source;
+        // AI strongly contradicts the authoritative score → hold for review.
+        if (verdict.outcome !== scoreOutcome && verdict.confidence >= 0.6) {
+          console.warn(
+            `[resolver] AI (${verdict.confidence}) disagrees with score for ${matchId}; holding for review`,
+          );
+          continue;
+        }
+      }
+    } else {
+      // No structured score — rely on the AI, but only when it's confident.
+      if (!verdict || verdict.confidence < 0.7) {
+        console.warn(`[resolver] no score + low AI confidence for ${matchId}; holding`);
+        continue;
+      }
+      finalOutcome = verdict.outcome;
+      rationale = verdict.rationale;
+      source = verdict.source;
+      byAi = true;
+    }
+
+    if (finalOutcome === Outcome.Pending) continue;
 
     try {
-      const tx = await resolver.resolve(matchId, match.result);
+      const tx = await resolver.resolve(matchId, finalOutcome);
       await tx.wait();
-      console.log(`[resolver] resolved ${matchId} -> ${Outcome[match.result]}`);
+      setResolution({
+        matchId,
+        rationale,
+        source,
+        confidence: verdict?.confidence ?? 1,
+        resolvedByAi: byAi,
+      });
+      console.log(
+        `[resolver] resolved ${matchId} -> ${Outcome[finalOutcome]}${byAi ? ' (AI: ' + rationale + ')' : ''}`,
+      );
     } catch (e) {
       console.warn(`[resolver] resolve ${matchId} failed:`, (e as Error).message);
     }
@@ -61,9 +112,17 @@ export async function runResolverTick(onSettled?: OnSettled): Promise<void> {
       const receipt = await tx.wait();
       const winner =
         result === c.creatorPick ? c.creator : result === c.takerPick ? c.taker : null;
-      console.log(`[resolver] settled challenge ${c.id}, winner=${winner ?? 'refund'}`);
-      onSettled?.({ challengeId: c.id, winner, matchId: c.matchId, result });
-      void receipt;
+      const res = getResolution(c.matchId);
+      console.log(`[resolver] settled challenge ${c.id}, winner=${winner ?? 'refund'}, tx=${receipt?.hash}`);
+      onSettled?.({
+        challengeId: c.id,
+        winner,
+        matchId: c.matchId,
+        result,
+        rationale: res?.rationale,
+        source: res?.source,
+        txHash: receipt?.hash,
+      });
     } catch (e) {
       console.warn(`[resolver] claim ${c.id} failed:`, (e as Error).message);
     }

@@ -1,6 +1,13 @@
 import { Bot, InlineKeyboard, Context } from 'grammy';
-import { fromBaseUnits } from '@mimic/shared';
-import { pickLabelFromOutcome } from './format.js';
+import { fromBaseUnits, type Match } from '@mimic/shared';
+import {
+  pickLabelFromOutcome,
+  isBettable,
+  isLive,
+  matchLine,
+  betButtonLabel,
+  scoreRow,
+} from './format.js';
 import { config } from './config.js';
 import { api } from './api.js';
 import { reply as aiReply, aiEnabled, aiMode } from './ai.js';
@@ -12,6 +19,22 @@ if (!config.botToken) {
 if (!config.miniappUrl) console.warn('MINIAPP_URL not set — launch buttons will not work');
 
 const bot = new Bot(config.botToken);
+
+// Catch-all: log EVERY update the bot receives (type, chat, sender, text).
+// This is the ground truth for "is the bot even seeing group messages?".
+bot.use(async (ctx, next) => {
+  try {
+    const u = ctx.update;
+    const type = Object.keys(u).find((k) => k !== 'update_id') ?? 'unknown';
+    const chat = ctx.chat ? `${ctx.chat.type}:${(ctx.chat as any).title ?? ctx.chat.id}` : '-';
+    const from = ctx.from?.username ? '@' + ctx.from.username : ctx.from?.first_name ?? '-';
+    const text = ctx.message?.text ?? ctx.channelPost?.text ?? '';
+    console.log(`[update] ${type} | chat=${chat} | from=${from}${text ? ` | "${text.slice(0, 80)}"` : ''}`);
+  } catch {
+    /* never block on logging */
+  }
+  await next();
+});
 
 /**
  * A button that opens the Mini App. In private chats we can use a native
@@ -31,6 +54,26 @@ function launchButton(ctx: Context, label: string, startParam?: string): InlineK
   return new InlineKeyboard().url(label, deep);
 }
 
+/**
+ * One tappable button per match, each opening the bet flow for that fixture.
+ * Works in both private chats (web_app) and groups (deep-link), and stacks
+ * one match per row so long team names stay readable.
+ */
+function matchesKeyboard(ctx: Context, matches: Match[]): InlineKeyboard {
+  const isPrivate = ctx.chat?.type === 'private';
+  const kb = new InlineKeyboard();
+  for (const m of matches) {
+    const label = betButtonLabel(m);
+    const param = `bet_${m.id}`;
+    if (isPrivate) {
+      kb.row(InlineKeyboard.webApp(label, `${config.miniappUrl}?startapp=${param}`));
+    } else {
+      kb.row(InlineKeyboard.url(label, `https://t.me/${config.botUsername}?start=${param}`));
+    }
+  }
+  return kb;
+}
+
 // ─── Commands ──────────────────────────────────────────────────────────────
 
 bot.command('start', async (ctx) => {
@@ -40,6 +83,20 @@ bot.command('start', async (ctx) => {
     await ctx.reply(
       `⚽️ You've been challenged!\n\nOpen MimicTG to take the other side of challenge #${id}. Winner takes the pot in USDt.`,
       { reply_markup: launchButton(ctx, '🎯 View & accept', payload) },
+    );
+    return;
+  }
+  // bet_<matchId> or bet_<matchId>_<home|draw|away> — from a group bet button.
+  if (payload?.startsWith('bet_') || payload?.startsWith('create')) {
+    const [, matchId, pick] = payload.split('_');
+    const m = matchId ? (await api.matches()).find((x) => x.id === matchId) : undefined;
+    const title = m ? `${m.homeTeam} v ${m.awayTeam}` : 'this match';
+    const side =
+      pick === 'home' && m ? m.homeTeam : pick === 'away' && m ? m.awayTeam : pick === 'draw' ? 'the draw' : null;
+    const line = side ? `Ready to back <b>${side}</b> in ${title}` : `Ready to bet on <b>${title}</b>`;
+    await ctx.reply(
+      `⚽️ ${line} — tap below to place it. Your stake locks in escrow, winner takes the pot. 👇`,
+      { parse_mode: 'HTML', reply_markup: launchButton(ctx, '🎯 Place your bet', payload) },
     );
     return;
   }
@@ -54,7 +111,8 @@ bot.command('help', async (ctx) => {
     [
       'MimicTG — P2P football betting in USDt ⚽️',
       '',
-      '/bet — open the app to post a challenge',
+      '/matches — live scores + tap a fixture to bet',
+      '/bet — pick a fixture and post a challenge',
       '/challenges — see open challenges to accept',
       '/leaderboard — who\'s winning',
       '',
@@ -66,11 +124,66 @@ bot.command('help', async (ctx) => {
   );
 });
 
-bot.command('bet', async (ctx) => {
-  await ctx.reply('🎯 Pick a fixture and post your challenge:', {
-    reply_markup: launchButton(ctx, 'Create a challenge', 'create'),
+/** Shared renderer for /bet and /matches: live scores + tappable upcoming fixtures. */
+async function sendMatches(ctx: Context) {
+  const all = await api.matches();
+  const live = all.filter(isLive);
+  const upcoming = all.filter(isBettable).slice(0, 6);
+  const finished = all
+    .filter((m) => m.status === 'FINISHED')
+    .sort((a, b) => b.utcKickoff.localeCompare(a.utcKickoff))
+    .slice(0, 4);
+
+  if (!upcoming.length && !live.length && !finished.length) {
+    await ctx.reply('No fixtures loaded right now — try again shortly ⚽️', {
+      reply_markup: launchButton(ctx, 'Open MimicTG', 'create'),
+    });
+    return;
+  }
+
+  const parts: string[] = [];
+  if (live.length) parts.push('🔴 <b>Live now</b>\n' + live.map((m) => '• ' + matchLine(m)).join('\n'));
+  if (upcoming.length)
+    parts.push('🎯 <b>Upcoming — tap a match to bet</b>\n' + upcoming.map((m) => '• ' + matchLine(m)).join('\n'));
+  if (finished.length)
+    parts.push('📋 <b>Recent results</b>\n' + finished.map((m) => '• ' + matchLine(m)).join('\n'));
+
+  await ctx.reply(parts.join('\n\n'), {
+    parse_mode: 'HTML',
+    reply_markup: upcoming.length
+      ? matchesKeyboard(ctx, upcoming)
+      : launchButton(ctx, 'Open MimicTG', 'create'),
   });
-});
+}
+
+bot.command('bet', sendMatches);
+bot.command('matches', sendMatches);
+
+/** A clean, formatted scoreboard: live scores + recent full-time results. */
+async function sendScores(ctx: Context) {
+  const all = await api.matches();
+  const live = all.filter(isLive);
+  const finished = all
+    .filter((m) => m.status === 'FINISHED')
+    .sort((a, b) => b.utcKickoff.localeCompare(a.utcKickoff))
+    .slice(0, 8);
+
+  if (!live.length && !finished.length) {
+    await ctx.reply('No scores yet — check /matches for upcoming fixtures ⚽️');
+    return;
+  }
+  const parts = ['📊 <b>Scoreboard</b>'];
+  if (live.length) parts.push('\n🔴 <b>Live</b>\n' + live.map((m) => '• ' + scoreRow(m)).join('\n'));
+  if (finished.length)
+    parts.push('\n🏁 <b>Full-time</b>\n' + finished.map((m) => '• ' + scoreRow(m)).join('\n'));
+  await ctx.reply(parts.join('\n'), {
+    parse_mode: 'HTML',
+    reply_markup: launchButton(ctx, '🎯 Open MimicTG', 'create'),
+  });
+}
+
+bot.command('scores', sendScores);
+bot.command('results', sendScores);
 
 bot.command('challenges', async (ctx) => {
   const open = await api.openMarkets();
@@ -123,6 +236,7 @@ bot.command('leaderboard', async (ctx) => {
 bot.on('my_chat_member', async (ctx) => {
   const status = ctx.myChatMember.new_chat_member.status;
   const isGroup = ctx.chat.type === 'group' || ctx.chat.type === 'supergroup';
+  console.log(`[member] chat "${(ctx.chat as any).title ?? ctx.chat.id}" (${ctx.chat.type}) → status=${status}`);
   if (isGroup && (status === 'member' || status === 'administrator')) {
     await ctx.reply(
       `⚽️ MimicTG is in the chat!\n\nChallenge each other on football in USDt. Try /bet to post one, /challenges to accept, /leaderboard to see who's on top.${aiEnabled() ? ' Or @mention me for match chat.' : ''}`,
@@ -134,30 +248,84 @@ bot.on('my_chat_member', async (ctx) => {
 // ─── AI chat: DMs always; groups only when mentioned or replied-to ─────────
 bot.on('message:text', async (ctx) => {
   const text = ctx.message.text;
-  if (text.startsWith('/')) return; // commands handled above
+  const who = ctx.from?.username ? '@' + ctx.from.username : ctx.from?.first_name || 'unknown';
+  const where = ctx.chat.type === 'private' ? 'DM' : `group "${(ctx.chat as any).title ?? ctx.chat.id}"`;
+
+  if (text.startsWith('/')) {
+    console.log(`[msg] ${where} ${who}: command "${text}"`);
+    return; // commands handled above
+  }
   if (!aiEnabled()) return;
 
   const isPrivate = ctx.chat.type === 'private';
   const mentioned = ctx.me?.username && text.includes(`@${ctx.me.username}`);
   const repliedToBot = ctx.message.reply_to_message?.from?.id === ctx.me?.id;
-  if (!isPrivate && !mentioned && !repliedToBot) return;
+  const willReply = isPrivate || mentioned || repliedToBot;
+  console.log(
+    `[msg] ${where} ${who}: "${text.slice(0, 80)}" → ${willReply ? 'REPLYING' : 'ignored (not mentioned/replied)'}`,
+  );
+  if (!willReply) return;
 
   const clean = ctx.me?.username ? text.replaceAll(`@${ctx.me.username}`, '').trim() : text;
   if (!clean) return;
 
+  // "results" / "scores" / "scoreboard" → structured board, not an AI prose blob
+  if (/\b(scores?|results?|scoreboard|scoreline)\b/i.test(clean) && clean.length <= 30) {
+    console.log(`[msg] → scoreboard`);
+    await sendScores(ctx);
+    return;
+  }
+
   await ctx.replyWithChatAction('typing').catch(() => {});
   try {
     const raw = await aiReply(ctx.chat.id, clean, ctx.from?.username || ctx.from?.first_name);
-    // extract an optional one-tap bet marker [[BET:<matchId>]]
-    const betMatch = raw.match(/\[\[BET:(\d+)\]\]/);
-    const answer = raw.replace(/\[\[BET:\d+\]\]/g, '').trim() || '⚽️';
-    let reply_markup;
-    if (betMatch) {
+    // directed challenge: [[CHALLENGE:@target:matchId:PICK]] — the AI is calling out
+    // a specific person; offer THEM the opposing sides to take.
+    const chMatch = raw.match(/\[\[CHALLENGE:@?([A-Za-z0-9_]+):(\d+):(HOME|DRAW|AWAY)\]\]/i);
+    // otherwise, optional one-tap bet marker for the sender.
+    const betMatch = !chMatch && raw.match(/\[\[BET:(\d+)(?::(HOME|DRAW|AWAY))?\]\]/i);
+    const answer = raw.replace(/\[\[(?:BET|CHALLENGE):[^\]]*\]\]/g, '').trim() || '⚽️';
+
+    let reply_markup: InlineKeyboard | undefined;
+    let logNote = '';
+    if (chMatch) {
+      const [, , matchId, pickRaw] = chMatch;
+      const pick = pickRaw.toUpperCase();
+      const m = (await api.matches()).find((x) => x.id === matchId);
+      // opposing outcomes = the two sides the challenger did NOT back
+      const sides = [
+        ['HOME', 'home', m ? `🏠 ${m.homeTeam} win` : 'Home win'],
+        ['DRAW', 'draw', '🤝 Draw'],
+        ['AWAY', 'away', m ? `✈️ ${m.awayTeam} win` : 'Away win'],
+      ] as const;
+      const isPrivate = ctx.chat.type === 'private';
+      const kb = new InlineKeyboard();
+      for (const [, slug, label] of sides.filter(([P]) => P !== pick)) {
+        kb.row(
+          isPrivate
+            ? InlineKeyboard.webApp(label, `${config.miniappUrl}?startapp=bet_${matchId}_${slug}`)
+            : InlineKeyboard.text(label, `t:${matchId}:${slug}`), // native one-tap in group
+        );
+      }
+      reply_markup = kb;
+      logNote = ` +challenge(${matchId}:${pick}→opp)`;
+    } else if (betMatch) {
       const id = betMatch[1];
+      const pick = betMatch[2]?.toLowerCase(); // home | draw | away | undefined
       const m = (await api.matches()).find((x) => x.id === id);
-      const label = m ? `🎯 Bet: ${m.homeTeam} v ${m.awayTeam}` : '🎯 Place this bet';
-      reply_markup = launchButton(ctx, label, `bet_${id}`);
+      let label = m ? `🎯 Bet: ${m.homeTeam} v ${m.awayTeam}` : '🎯 Place this bet';
+      if (m && pick === 'home') label = `🎯 Bet ${m.homeTeam} to win`;
+      else if (m && pick === 'away') label = `🎯 Bet ${m.awayTeam} to win`;
+      else if (pick === 'draw') label = '🎯 Bet the draw';
+      if (ctx.chat.type !== 'private' && pick) {
+        // one-tap native callback in groups (instant toast + DM confirm)
+        reply_markup = new InlineKeyboard().text(label, `t:${id}:${pick}`);
+      } else {
+        reply_markup = launchButton(ctx, label, pick ? `bet_${id}_${pick}` : `bet_${id}`);
+      }
+      logNote = ` +betbtn(${id}${pick ? ':' + pick : ''})`;
     }
+    console.log(`[msg] → replied${logNote}`);
     await ctx.reply(answer, { reply_to_message_id: ctx.message.message_id, reply_markup });
   } catch (e) {
     console.warn('[ai]', (e as Error).message);
@@ -165,8 +333,62 @@ bot.on('message:text', async (ctx) => {
   }
 });
 
+// ─── One-tap "Take" in a group: instant toast + a single Confirm&sign DM ─────
+// The tap is a non-binding social claim; the money only moves when the user
+// signs in the mini app (self-custodial). Callback data: t:<matchId>:<pick>.
+bot.callbackQuery(/^t:(\d+):(home|draw|away)$/, async (ctx) => {
+  const matchId = ctx.match![1];
+  const pick = ctx.match![2];
+  const uname = ctx.from.username ? '@' + ctx.from.username : ctx.from.first_name || 'you';
+  const m = (await api.matches()).find((x) => x.id === matchId);
+  const side = pick === 'home' && m ? m.homeTeam : pick === 'away' && m ? m.awayTeam : 'the draw';
+  const title = m ? `${m.homeTeam} v ${m.awayTeam}` : 'this match';
+  const param = `bet_${matchId}_${pick}`;
+  try {
+    await bot.api.sendMessage(
+      ctx.from.id,
+      `🎯 Locking in your bet: <b>${side}</b> — ${title}.\nTap to confirm &amp; sign — gasless, and only you can authorize it. 👇`,
+      {
+        parse_mode: 'HTML',
+        reply_markup: new InlineKeyboard().webApp('✅ Confirm & sign', `${config.miniappUrl}?startapp=${param}`),
+      },
+    );
+    await ctx.answerCallbackQuery({ text: `You're in, ${uname}! Confirm in your DM with me 🖊️` });
+    // soft, non-blocking social hint so the whole group sees the action land
+    const msg = ctx.callbackQuery.message;
+    const orig = msg && 'text' in msg ? msg.text : undefined;
+    if (orig && !orig.includes(`${uname} is in`)) {
+      await ctx
+        .editMessageText(`${orig}\n\n👀 ${uname} is in — confirming…`, {
+          reply_markup: msg && 'reply_markup' in msg ? (msg.reply_markup as InlineKeyboard) : undefined,
+        })
+        .catch(() => {});
+    }
+    console.log(`[callback] ${uname} take ${matchId}:${pick} → DM sent`);
+  } catch {
+    // bots can only DM users who've started them
+    await ctx.answerCallbackQuery({
+      text: `First tap Start in @${config.botUsername} (DM me), then tap Take again — I need to DM you the confirm link.`,
+      show_alert: true,
+    });
+    console.log(`[callback] ${uname} take ${matchId}:${pick} → DM failed (user hasn't started bot)`);
+  }
+});
+
 // ─── Menu button (private chats) ───────────────────────────────────────────
 async function configureMenu() {
+  try {
+    await bot.api.setMyCommands([
+      { command: 'matches', description: 'Live scores + tap a fixture to bet' },
+      { command: 'scores', description: 'Live scores + full-time results' },
+      { command: 'bet', description: 'Pick a fixture and post a challenge' },
+      { command: 'challenges', description: 'Open challenges to accept' },
+      { command: 'leaderboard', description: "Who's winning" },
+      { command: 'help', description: 'How MimicTG works' },
+    ]);
+  } catch (e) {
+    console.warn('setMyCommands failed:', (e as Error).message);
+  }
   if (!config.miniappUrl) return;
   try {
     await bot.api.setChatMenuButton({
@@ -181,4 +403,9 @@ bot.catch((err) => console.error('bot error', err));
 
 await configureMenu();
 console.log(`[bot] starting long-polling… (AI: ${aiMode()})`);
-bot.start();
+// Explicitly subscribe to group + membership updates so nothing is filtered out
+// by the default allowed_updates set.
+bot.start({
+  allowed_updates: ['message', 'edited_message', 'my_chat_member', 'chat_member', 'callback_query'],
+  onStart: (me) => console.log(`[bot] online as @${me.username} (id ${me.id})`),
+});

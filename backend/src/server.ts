@@ -94,8 +94,12 @@ app.post<{ Body: { address: string } }>('/faucet/gas', async (req, reply) => {
   }
 });
 
-// Manual resolve trigger (demo convenience). Guarded by resolver key presence.
+// Manual resolve trigger (demo convenience). Requires a shared admin secret —
+// disabled entirely if ADMIN_SECRET is unset, so it's never publicly callable.
 app.post<{ Body: { matchId: string; outcome: Outcome } }>('/admin/resolve', async (req, reply) => {
+  if (!config.adminSecret) return reply.code(403).send({ error: 'admin endpoint disabled' });
+  const auth = (req.headers['authorization'] || '').toString().replace(/^Bearer\s+/i, '');
+  if (auth !== config.adminSecret) return reply.code(401).send({ error: 'unauthorized' });
   const { marketResolver } = await import('./chain.js');
   const r = marketResolver();
   if (!r) return reply.code(400).send({ error: 'no resolver key configured' });
@@ -118,16 +122,20 @@ startResolver(30_000, (e) => {
   const c = getChallenge(e.challengeId);
   if (!c) return;
   const label = `${c.match?.homeTeam ?? 'Home'} vs ${c.match?.awayTeam ?? 'Away'}`;
+  // AI resolver's receipt + on-chain proof, so settlement is transparent.
+  const why = e.rationale ? `\n🤖 ${e.rationale}${e.source ? ` <i>(${e.source})</i>` : ''}` : '';
+  const tx = e.txHash ? `\n🔗 <a href="${config.explorer}/tx/${e.txHash}">View payout on BaseScan</a>` : '';
+  const receipt = why + tx;
   if (e.winner) {
     const tgId = tgIdFor(e.winner);
-    if (tgId) notify(tgId, `🏆 You won <b>${pot} USDt</b> on ${label}! Result: ${Outcome[e.result]}.`);
+    if (tgId) notify(tgId, `🏆 You won <b>${pot} USDt</b> on ${label}! Result: ${Outcome[e.result]}.${receipt}`);
     const loser = e.winner.toLowerCase() === c.creator.toLowerCase() ? c.taker : c.creator;
     const loserTg = loser ? tgIdFor(loser) : undefined;
-    if (loserTg) notify(loserTg, `😔 Your bet on ${label} didn't land. Result: ${Outcome[e.result]}.`);
+    if (loserTg) notify(loserTg, `😔 Your bet on ${label} didn't land. Result: ${Outcome[e.result]}.${receipt}`);
   } else {
     for (const addr of [c.creator, c.taker].filter(Boolean) as string[]) {
       const tgId = tgIdFor(addr);
-      if (tgId) notify(tgId, `↩️ ${label} was a wash (neither pick hit). Your stake was refunded.`);
+      if (tgId) notify(tgId, `↩️ ${label} was a wash (neither pick hit). Your stake was refunded.${receipt}`);
     }
   }
 });
