@@ -1,4 +1,10 @@
-import { Outcome, Match, fromBaseUnits } from '@mimic/shared';
+import { Outcome, Match, Challenge, ChallengeStatus, fromBaseUnits } from '@mimic/shared';
+
+/** An OPEN challenge whose kickoff has passed can no longer be accepted — the
+ * creator's stake is stuck until they reclaim it. */
+export function isChallengeExpired(c: Pick<Challenge, 'status' | 'kickoff'>): boolean {
+  return c.status === ChallengeStatus.Open && c.kickoff > 0 && c.kickoff * 1000 <= Date.now();
+}
 
 export function pickLabel(o: Outcome, m?: Match): string {
   switch (o) {
@@ -18,6 +24,19 @@ export function shortAddr(a?: string | null): string {
   return `${a.slice(0, 6)}…${a.slice(-4)}`;
 }
 
+/** Deterministic squircle-avatar gradient from an address/username seed. */
+export function avatarGradient(seed: string): string {
+  let h = 0;
+  for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) % 360;
+  return `linear-gradient(135deg, hsl(${h} 70% 55%), hsl(${(h + 48) % 360} 70% 42%))`;
+}
+
+/** First letter for an avatar: '@handle' → 'H', address → its first hex char. */
+export function avatarInitial(name: string): string {
+  const s = name.replace(/^@/, '').replace(/^0x/, '');
+  return (s[0] || '?').toUpperCase();
+}
+
 export function usdt(base: string | bigint): string {
   return fromBaseUnits(typeof base === 'string' ? BigInt(base) : base);
 }
@@ -35,8 +54,18 @@ export function kickoffLabel(iso: string): string {
   return d.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
 }
 
+/** A fixture whose teams aren't decided yet (e.g. World Cup bracket placeholders). */
+export function teamsKnown(m: Match): boolean {
+  const tbd = (s?: string) => !s || /\btbd\b/i.test(s);
+  return !tbd(m.homeTeam) && !tbd(m.awayTeam);
+}
+
 export function isBettable(m: Match): boolean {
-  return (m.status === 'SCHEDULED' || m.status === 'TIMED') && new Date(m.utcKickoff).getTime() > Date.now();
+  return (
+    (m.status === 'SCHEDULED' || m.status === 'TIMED') &&
+    new Date(m.utcKickoff).getTime() > Date.now() &&
+    teamsKnown(m)
+  );
 }
 
 export function isLive(m: Match): boolean {

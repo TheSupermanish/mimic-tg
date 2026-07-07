@@ -52,7 +52,14 @@ export function Matches() {
 
   return (
     <div>
-      {loading && !matches && <div className="spinner" />}
+      {loading && !matches && (
+        <>
+          <div className="section-title">Loading fixtures…</div>
+          {[0, 1, 2, 3].map((i) => (
+            <div key={i} className="skeleton" />
+          ))}
+        </>
+      )}
 
       {live.length > 0 && (
         <>

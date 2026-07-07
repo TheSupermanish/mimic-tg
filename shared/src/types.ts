@@ -56,11 +56,16 @@ export interface Challenge {
   stake: string; // USDt base units (6 decimals) as string
   status: ChallengeStatus;
   result: Outcome; // Pending until resolved
+  kickoff: number; // fixture start, unix seconds; no accepts once reached
   createdAt: number; // unix seconds
   // Enrichment (off-chain):
   creatorTgUsername?: string;
   opponentTgUsername?: string;
   match?: Match;
+  // How the fixture was resolved (present once settled):
+  aiRationale?: string; // human-readable "why", from the AI resolver
+  aiSource?: string; // where the result was confirmed
+  resolvedByAi?: boolean;
 }
 
 /** Telegram user identity resolved after initData validation. */

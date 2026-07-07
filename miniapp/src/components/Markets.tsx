@@ -3,6 +3,7 @@ import { api } from '../lib/api';
 import { usePolling } from '../ui';
 import { useApp } from '../state';
 import { ChallengeCard } from './ChallengeCard';
+import { isChallengeExpired } from '../lib/format';
 
 /** The P2P board — open challenges anyone can take the other side of. */
 export function Markets() {
@@ -13,8 +14,10 @@ export function Markets() {
   );
   const me = wallet?.address.toLowerCase();
 
-  // show open challenges: directed-to-me first, then open-to-anyone (not mine)
+  // show takeable open challenges: not expired (kickoff still ahead),
+  // directed-to-me or open-to-anyone.
   const list = (challenges ?? []).filter((c) => {
+    if (isChallengeExpired(c)) return false;
     if (!c.opponent) return true;
     return c.opponent.toLowerCase() === me;
   });
