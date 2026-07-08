@@ -23,7 +23,8 @@ function Avatar({ seed, label }: { seed: string; label: string }) {
 const OUTCOMES = [Outcome.Home, Outcome.Draw, Outcome.Away];
 
 export function ChallengeCard({ c, onChanged }: { c: Challenge; onChanged: () => void }) {
-  const { wallet } = useApp();
+  const { wallet, config } = useApp();
+  const explorer = config?.explorer;
   const { pending, run } = useAction();
   const [takerPick, setTakerPick] = useState<Outcome | null>(null);
   const me = wallet?.address.toLowerCase();
@@ -159,11 +160,25 @@ export function ChallengeCard({ c, onChanged }: { c: Challenge; onChanged: () =>
           </button>
         ))}
 
-      {c.status === ChallengeStatus.Settled && c.aiRationale && (
+      {c.status === ChallengeStatus.Settled && (c.aiRationale || c.resolveTxHash) && (
         <div className="hint" style={{ marginTop: 10 }}>
-          {c.resolvedByAi ? '🤖 ' : ''}
-          {c.aiRationale}
-          {c.aiSource ? ` · ${c.aiSource}` : ''}
+          {c.aiRationale && (
+            <div>
+              {c.resolvedByAi ? '🤖 ' : ''}
+              {c.aiRationale}
+              {c.aiSource ? ` · ${c.aiSource}` : ''}
+            </div>
+          )}
+          {c.resolveTxHash && explorer && (
+            <a
+              href={`${explorer}/tx/${c.resolveTxHash}`}
+              target="_blank"
+              rel="noreferrer"
+              style={{ color: 'var(--accent)', marginTop: 4, display: 'inline-block' }}
+            >
+              🔗 Resolved on-chain — view on BaseScan
+            </a>
+          )}
         </div>
       )}
     </div>

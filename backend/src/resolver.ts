@@ -92,6 +92,7 @@ export async function runResolverTick(onSettled?: OnSettled): Promise<void> {
         source,
         confidence: verdict?.confidence ?? 1,
         resolvedByAi: byAi,
+        resolveTxHash: tx.hash,
       });
       console.log(
         `[resolver] resolved ${matchId} -> ${Outcome[finalOutcome]}${byAi ? ' (AI: ' + rationale + ')' : ''}`,

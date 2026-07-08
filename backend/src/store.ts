@@ -92,12 +92,28 @@ export interface ResolutionRecord {
   source: string; // where it was confirmed
   confidence: number; // 0..1
   resolvedByAi: boolean;
+  resolveTxHash?: string; // the on-chain resolve() tx — verifiable proof
 }
 
+const RES_FILE = resolve(__dirname, '../.data/resolutions.json');
 const resolutionByMatchId = new Map<string, ResolutionRecord>();
+
+// disk-persisted so the AI rationale + resolve tx survive a backend restart
+try {
+  const saved = JSON.parse(readFileSync(RES_FILE, 'utf8')) as ResolutionRecord[];
+  for (const r of saved) resolutionByMatchId.set(r.matchId, r);
+} catch {
+  /* none yet */
+}
 
 export function setResolution(r: ResolutionRecord): void {
   resolutionByMatchId.set(r.matchId, r);
+  try {
+    mkdirSync(dirname(RES_FILE), { recursive: true });
+    writeFileSync(RES_FILE, JSON.stringify([...resolutionByMatchId.values()]));
+  } catch (e) {
+    console.warn('[store] persist resolutions failed:', (e as Error).message);
+  }
 }
 
 export function getResolution(matchId: string): ResolutionRecord | undefined {

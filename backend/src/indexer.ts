@@ -85,6 +85,7 @@ export async function reindex(): Promise<Challenge[]> {
       aiRationale: resolution?.rationale,
       aiSource: resolution?.source,
       resolvedByAi: resolution?.resolvedByAi,
+      resolveTxHash: resolution?.resolveTxHash,
     });
   }
 

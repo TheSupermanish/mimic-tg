@@ -66,6 +66,7 @@ export interface Challenge {
   aiRationale?: string; // human-readable "why", from the AI resolver
   aiSource?: string; // where the result was confirmed
   resolvedByAi?: boolean;
+  resolveTxHash?: string; // on-chain resolve() tx — verifiable on the explorer
 }
 
 /** Telegram user identity resolved after initData validation. */
