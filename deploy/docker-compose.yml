@@ -1,0 +1,27 @@
+# MimicTG on the existing VM — additive, isolated from the mimic-markets stack.
+# Joins the external `stack` network only so Caddy can reach it as `mimic-tg`.
+services:
+  mimic-tg:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    container_name: mimic-tg
+    restart: always
+    env_file:
+      - ../.env
+    environment:
+      # in-container paths / public URL override the .env (which has Mac paths)
+      GOOGLE_APPLICATION_CREDENTIALS: /app/vertex-sa.json
+      MINIAPP_URL: https://tg.mimic.markets
+      BACKEND_PUBLIC_URL: http://localhost:8787
+    volumes:
+      - ../vertex-sa.json:/app/vertex-sa.json:ro
+    networks:
+      - stack
+    security_opt:
+      - no-new-privileges:true
+
+networks:
+  stack:
+    external: true
+    name: mimic-stack_stack
