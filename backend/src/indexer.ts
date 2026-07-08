@@ -36,9 +36,14 @@ function notifyAccepted(c: Challenge): void {
     );
 }
 
+// Raw chain data for terminal (settled/cancelled) challenges — frozen, so the
+// indexer never re-fetches them from the RPC (keeps us under rate limits).
+const terminalCache = new Map<number, any>();
+
 /**
- * Rebuilds the challenge set by reading on-chain state. For a hackathon the
- * challenge count is small, so a full re-read each poll is simplest and robust.
+ * Rebuilds the challenge set from on-chain state. Terminal challenges are
+ * cached (their chain data can't change), so each poll only re-reads the
+ * still-active bets — cheap even as the total challenge count grows.
  */
 export async function reindex(): Promise<Challenge[]> {
   if (!config.predictionMarketAddress) return [];
@@ -60,33 +65,42 @@ export async function reindex(): Promise<Challenge[]> {
 
   const out: Challenge[] = [];
   for (let id = 0; id < next; id++) {
-    const c = await market.getChallenge(id);
-    const opponent = c.opponent === ZeroAddress ? null : c.opponent;
-    const taker = c.taker === ZeroAddress ? null : c.taker;
-    const matchId = c.matchId as string;
+    // Settled/Cancelled challenges are frozen on-chain — read them once, then
+    // reuse the cached chain data (only re-enrich the cheap off-chain fields).
+    // This cuts the per-tick RPC load to just the still-active bets.
+    const frozen = terminalCache.get(id);
+    const raw = frozen ?? (await market.getChallenge(id));
+    const opponent = raw.opponent === ZeroAddress ? null : raw.opponent;
+    const taker = raw.taker === ZeroAddress ? null : raw.taker;
+    const matchId = raw.matchId as string;
+    const status = Number(raw.status) as ChallengeStatus;
     const resolution = getResolution(matchId);
 
-    out.push({
+    const challenge: Challenge = {
       id,
       matchId,
-      creator: c.creator,
-      creatorPick: Number(c.creatorPick) as Outcome,
+      creator: raw.creator,
+      creatorPick: Number(raw.creatorPick) as Outcome,
       opponent,
       taker,
-      takerPick: taker ? (Number(c.takerPick) as Outcome) : null,
-      stake: c.stake.toString(),
-      status: Number(c.status) as ChallengeStatus,
+      takerPick: taker ? (Number(raw.takerPick) as Outcome) : null,
+      stake: raw.stake.toString(),
+      status,
       result: await resultFor(matchId),
-      kickoff: Number(c.kickoff),
+      kickoff: Number(raw.kickoff),
       createdAt: 0,
-      creatorTgUsername: usernameFor(c.creator),
+      creatorTgUsername: usernameFor(raw.creator),
       opponentTgUsername: taker ? usernameFor(taker) : undefined,
       match: matchById.get(matchId),
       aiRationale: resolution?.rationale,
       aiSource: resolution?.source,
       resolvedByAi: resolution?.resolvedByAi,
       resolveTxHash: resolution?.resolveTxHash,
-    });
+    };
+    if (!frozen && (status === ChallengeStatus.Settled || status === ChallengeStatus.Cancelled)) {
+      terminalCache.set(id, raw); // freeze the raw chain read; never re-fetched
+    }
+    out.push(challenge);
   }
 
   // Detect open→matched transitions since the last poll and nudge both sides.
@@ -102,7 +116,7 @@ export async function reindex(): Promise<Challenge[]> {
 }
 
 /** Poll loop to keep the challenge cache fresh. */
-export function startIndexer(intervalMs = 6_000): void {
+export function startIndexer(intervalMs = 10_000): void {
   const tick = () =>
     reindex().catch((e) => console.warn('[indexer]', (e as Error).message));
   tick();

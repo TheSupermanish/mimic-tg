@@ -2,7 +2,11 @@ import { JsonRpcProvider, Contract, Wallet, Interface } from 'ethers';
 import { config } from './config.js';
 import PredictionMarketAbi from '@mimic/shared/src/deployed/abis/PredictionMarket.json' with { type: 'json' };
 
-export const provider = new JsonRpcProvider(config.rpcUrl, config.chainId);
+// staticNetwork: the chain never changes, so don't let ethers re-fetch
+// eth_chainId on every call (that spam was tripping the public RPC's rate limit).
+export const provider = new JsonRpcProvider(config.rpcUrl, config.chainId, {
+  staticNetwork: true,
+});
 
 export const marketInterface = new Interface(PredictionMarketAbi as any);
 
