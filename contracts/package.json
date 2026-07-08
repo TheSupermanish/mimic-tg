@@ -9,10 +9,10 @@
     "export-abi": "hardhat run scripts/export-abi.ts"
   },
   "devDependencies": {
-    "@nomicfoundation/hardhat-toolbox": "^5.0.0",
+    "@nomicfoundation/hardhat-toolbox": "^7.0.0",
     "@openzeppelin/contracts": "^5.1.0",
     "dotenv": "^16.4.5",
-    "hardhat": "^2.22.15",
+    "hardhat": "^3.9.1",
     "typescript": "^5.6.3"
   }
 }
