@@ -1,15 +1,19 @@
-# MimicTG ⚽️ — P2P Football Prediction Market on Telegram
+# MimicTG ⚽️
 
-> Tether Developers Cup entry — **WDK track**. A peer-to-peer football prediction market where you hold your own USDt in a self-custodial [WDK](https://wdk.tether.io) wallet **inside Telegram**, and challenge friends on match outcomes.
+**Bet your mates in USDt, right inside Telegram. Your keys, your funds, settled by the final whistle.**
 
-_"I bet @manish 5 USDt on Brazil"_ → he accepts → both stakes lock in an on-chain escrow → a resolver settles from the real match result → the winner claims the pot. Unmatched challenges are refunded.
+> Tether Developers Cup entry, **WDK track**. A peer-to-peer football prediction market where every player holds their own USDt in a self-custodial [WDK](https://wdk.tether.io) wallet **inside Telegram** and challenges friends on real match outcomes.
 
-## Why it's on-theme
+It's the 80th minute and the group chat is melting down. Someone types _"Argentina win this, easy."_ In MimicTG that stops being talk: _"I bet you 5 USDt on Argentina"_ locks both stakes into an on-chain escrow, and when the referee blows for full time an AI resolver settles from the real result and pays the winner. Unmatched challenges are refunded. No bookmaker, no house, no custodian, no gas.
 
-- **WDK, for real:** every user has a self-custodial USDt wallet generated in-app. Keys never leave the device. Balances and transfers go through `@tetherto/wdk`.
-- **Football:** markets are real fixtures pulled from [football-data.org](https://www.football-data.org).
-- **P2P:** you bet against other people (open or directed challenges), not a house.
-- **Telegram-native:** a Mini App for the wallet + betting UI, and a bot for invites, deep-link accepts, and settlement notifications.
+## What makes it tick
+
+- **WDK, for real:** every user gets a self-custodial USDt wallet generated in-app; the 12-word seed is PIN-encrypted on the device and never leaves it. Balances, signing, and transfers all go through `@tetherto/wdk`.
+- **Gasless:** via EIP-7702 the wallet is delegated to a smart account, so funding, approving, betting, and claiming are all sponsored UserOperations. A brand-new fan needs zero ETH.
+- **Real football:** markets are real fixtures and results from [football-data.org](https://www.football-data.org).
+- **Peer-to-peer:** you bet other people (open challenges, or directed at a specific friend), never a house.
+- **A witty AI football brain:** @mention the bot for live scores, standings, top scorers, and real goalscorers grounded from live web search. Say "bet @sam 10 on Spain" and it pings Sam directly with a one-tap button to take the other side.
+- **Telegram-native:** a Mini App for the wallet and betting UI, and a bot for invites, deep-link accepts, directed-challenge DMs, and settlement notifications.
 
 ## Architecture
 
@@ -99,6 +103,8 @@ open the live Mini App. When you're done, redeploy without the flag (`docker com
 4. A second user opens the deep link (`t.me/<bot>?start=accept_<id>`), takes the other side.
 5. When the match finishes, the resolver reads the score from football-data.org, settles on-chain,
    and both players get a Telegram notification. Winner's USDt balance goes up.
+6. @mention the bot in the group any time for live scores, standings, and real goalscorers, or to
+   call someone out with a one-tap challenge.
 
 ## Gasless mode (EIP-7702)
 
@@ -109,9 +115,19 @@ UserOperation** — the user needs **zero ETH**. Without the key, it falls back 
 WDK EVM wallet + the backend gas-drip. Verify with `PIMLICO_API_KEY=… node scripts/e2e.mjs`
 (runs a proof that a zero-ETH wallet can faucet + bet).
 
+## AI football brain
+
+@mention the bot, or DM it, for banter and real football knowledge:
+
+- **Live scores, standings, and competition top scorers**, cached server-side so we stay well under the football API's free-tier limit.
+- **Real goalscorers**, which the free football feed does not provide, retrieved via Gemini with Google Search grounding and cached per match: finished matches are grounded once and persisted to disk, live matches refresh on a short TTL. Ask "who scored in Argentina's game?" and it replies with names and minutes.
+- **Natural-language betting:** "bet @sam 10 on Spain" becomes a directed challenge that DMs Sam a one-tap button to take the other side.
+
+It runs on Gemini via Vertex AI (gcloud ADC) or an AI Studio `GEMINI_API_KEY`, and is deliberately walled off from custody: it can talk football and set up challenges, but never touches anyone's keys or funds. Without a key configured the betting still works; only the chat brain is disabled. This is chat colour only, on-chain settlement always uses the authoritative football-data result.
+
 ## Third-party services
 
-Base Sepolia RPC · football-data.org · Telegram Bot API · Pimlico bundler/paymaster (gasless mode only).
+Base Sepolia RPC, football-data.org, Telegram Bot API, Pimlico bundler/paymaster (gasless mode), and Google Vertex AI / Gemini with Google Search grounding (AI resolver and sidekick).
 
 ## License
 
