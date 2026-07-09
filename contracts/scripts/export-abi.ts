@@ -9,6 +9,7 @@ export function exportAbis() {
   const artifacts = [
     ['MockUSDT', 'contracts/MockUSDT.sol/MockUSDT.json'],
     ['PredictionMarket', 'contracts/PredictionMarket.sol/PredictionMarket.json'],
+    ['PropMarket', 'contracts/PropMarket.sol/PropMarket.json'],
   ] as const;
 
   const outDir = resolve(__dirname, '../../shared/src/deployed/abis');

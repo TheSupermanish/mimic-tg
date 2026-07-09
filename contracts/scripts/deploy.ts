@@ -29,6 +29,11 @@ async function main() {
   const marketAddr = await market.getAddress();
   console.log(`PredictionMarket: ${marketAddr}`);
 
+  const prop = await (await ethers.getContractFactory('PropMarket')).deploy(usdtAddr, resolverAddr);
+  await prop.waitForDeployment();
+  const propAddr = await prop.getAddress();
+  console.log(`PropMarket:       ${propAddr}`);
+
   const sharedDir = resolve(__dirname, '../../shared/src/deployed');
   mkdirSync(sharedDir, { recursive: true });
   const addresses = {
@@ -36,6 +41,7 @@ async function main() {
     chainId: Number((await ethers.provider.getNetwork()).chainId),
     mockUsdt: usdtAddr,
     predictionMarket: marketAddr,
+    propMarket: propAddr,
     resolver: resolverAddr,
   };
   writeFileSync(resolve(sharedDir, 'addresses.json'), JSON.stringify(addresses, null, 2));

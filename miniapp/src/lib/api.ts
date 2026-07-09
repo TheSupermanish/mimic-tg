@@ -14,6 +14,7 @@ export interface AppConfig {
   wdkChainKey: string;
   mockUsdt: string;
   predictionMarket: string;
+  propMarket: string;
   gasless: GaslessConfig | null;
 }
 

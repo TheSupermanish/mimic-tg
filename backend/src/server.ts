@@ -21,6 +21,7 @@ app.get('/config', async () => ({
   wdkChainKey: CHAIN.wdkChainKey,
   mockUsdt: config.mockUsdtAddress,
   predictionMarket: config.predictionMarketAddress,
+  propMarket: config.propMarketAddress,
   gasless: gaslessConfig(),
 }));
 

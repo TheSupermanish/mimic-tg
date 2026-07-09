@@ -7,7 +7,12 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: resolve(__dirname, '../../.env') });
 
 /** Deployed addresses written by the contracts deploy script (if run). */
-function readDeployed(): { mockUsdt?: string; predictionMarket?: string; resolver?: string } {
+function readDeployed(): {
+  mockUsdt?: string;
+  predictionMarket?: string;
+  propMarket?: string;
+  resolver?: string;
+} {
   const p = resolve(__dirname, '../../shared/src/deployed/addresses.json');
   if (!existsSync(p)) return {};
   try {
@@ -27,6 +32,7 @@ export const config = {
 
   mockUsdtAddress: process.env.MOCK_USDT_ADDRESS || deployed.mockUsdt || '',
   predictionMarketAddress: process.env.PREDICTION_MARKET_ADDRESS || deployed.predictionMarket || '',
+  propMarketAddress: process.env.PROP_MARKET_ADDRESS || deployed.propMarket || '',
   resolverPrivateKey: (() => {
     const k = process.env.RESOLVER_PRIVATE_KEY || '';
     return k && !k.startsWith('0x') ? `0x${k}` : k;
