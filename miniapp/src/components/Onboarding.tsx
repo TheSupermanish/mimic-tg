@@ -19,9 +19,7 @@ export function Onboarding() {
       <div className="center">
         <div className="hero">
           <div className="logo">⚽️</div>
-          <h1>
-            Mimic<span style={{ color: 'var(--accent)' }}>TG</span>
-          </h1>
+          <h1>Mimic</h1>
           <p>Bet your mates on football. Your keys, your USDt.</p>
         </div>
         <div className="features">

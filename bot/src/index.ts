@@ -81,7 +81,7 @@ bot.command('start', async (ctx) => {
   if (payload?.startsWith('accept_')) {
     const id = payload.slice('accept_'.length);
     await ctx.reply(
-      `⚽️ You've been challenged!\n\nOpen MimicTG to take the other side of challenge #${id}. Winner takes the pot in USDt.`,
+      `⚽️ You've been challenged!\n\nOpen Mimic to take the other side of challenge #${id}. Winner takes the pot in USDt.`,
       { reply_markup: launchButton(ctx, '🎯 View & accept', payload) },
     );
     return;
@@ -101,15 +101,15 @@ bot.command('start', async (ctx) => {
     return;
   }
   await ctx.reply(
-    `⚽️ <b>Welcome to MimicTG</b>\n\nBet your mates on football with your own self-custodial USDt wallet — powered by Tether WDK, gasless.\n\n• Your keys, your funds\n• Challenge anyone: <i>"I bet you 5 USDt on Brazil"</i>\n• Winner takes the pot, settled from real results\n\nAdd me to your football group and let the trash-talk begin 👇`,
-    { parse_mode: 'HTML', reply_markup: launchButton(ctx, '🚀 Open MimicTG') },
+    `⚽️ <b>Welcome to Mimic</b>\n\nBet your mates on football with your own self-custodial USDt wallet — powered by Tether WDK, gasless.\n\n• Your keys, your funds\n• Challenge anyone: <i>"I bet you 5 USDt on Brazil"</i>\n• Winner takes the pot, settled from real results\n\nAdd me to your football group and let the trash-talk begin 👇`,
+    { parse_mode: 'HTML', reply_markup: launchButton(ctx, '🚀 Open Mimic') },
   );
 });
 
 bot.command('help', async (ctx) => {
   await ctx.reply(
     [
-      'MimicTG — P2P football betting in USDt ⚽️',
+      'Mimic — P2P football betting in USDt ⚽️',
       '',
       '/matches — live scores + tap a fixture to bet',
       '/bet — pick a fixture and post a challenge',
@@ -120,7 +120,7 @@ bot.command('help', async (ctx) => {
         ? 'Or just talk to me — @mention me in a group, or DM me, for match chat and predictions.'
         : 'Add me to your group and challenge your mates!',
     ].join('\n'),
-    { reply_markup: launchButton(ctx, 'Open MimicTG') },
+    { reply_markup: launchButton(ctx, 'Open Mimic') },
   );
 });
 
@@ -136,7 +136,7 @@ async function sendMatches(ctx: Context) {
 
   if (!upcoming.length && !live.length && !finished.length) {
     await ctx.reply('No fixtures loaded right now — try again shortly ⚽️', {
-      reply_markup: launchButton(ctx, 'Open MimicTG', 'create'),
+      reply_markup: launchButton(ctx, 'Open Mimic', 'create'),
     });
     return;
   }
@@ -152,7 +152,7 @@ async function sendMatches(ctx: Context) {
     parse_mode: 'HTML',
     reply_markup: upcoming.length
       ? matchesKeyboard(ctx, upcoming)
-      : launchButton(ctx, 'Open MimicTG', 'create'),
+      : launchButton(ctx, 'Open Mimic', 'create'),
   });
 }
 
@@ -178,7 +178,7 @@ async function sendScores(ctx: Context) {
     parts.push('\n🏁 <b>Full-time</b>\n' + finished.map((m) => '• ' + scoreRow(m)).join('\n'));
   await ctx.reply(parts.join('\n'), {
     parse_mode: 'HTML',
-    reply_markup: launchButton(ctx, '🎯 Open MimicTG', 'create'),
+    reply_markup: launchButton(ctx, '🎯 Open Mimic', 'create'),
   });
 }
 
@@ -226,7 +226,7 @@ bot.command('leaderboard', async (ctx) => {
     const sign = net > 0 ? '+' : '';
     return `${medal[i] ?? `${i + 1}.`} ${who} — ${sign}${fromBaseUnits(r.net)} USDt (${r.wins}W/${r.losses}L)`;
   });
-  await ctx.reply(`🏆 <b>MimicTG Leaderboard</b>\n\n${lines.join('\n')}`, {
+  await ctx.reply(`🏆 <b>Mimic Leaderboard</b>\n\n${lines.join('\n')}`, {
     parse_mode: 'HTML',
     reply_markup: launchButton(ctx, 'Climb the ranks', 'create'),
   });
@@ -239,8 +239,8 @@ bot.on('my_chat_member', async (ctx) => {
   console.log(`[member] chat "${(ctx.chat as any).title ?? ctx.chat.id}" (${ctx.chat.type}) → status=${status}`);
   if (isGroup && (status === 'member' || status === 'administrator')) {
     await ctx.reply(
-      `⚽️ MimicTG is in the chat!\n\nChallenge each other on football in USDt. Try /bet to post one, /challenges to accept, /leaderboard to see who's on top.${aiEnabled() ? ' Or @mention me for match chat.' : ''}`,
-      { reply_markup: launchButton(ctx, '🚀 Open MimicTG') },
+      `⚽️ Mimic is in the chat!\n\nChallenge each other on football in USDt. Try /bet to post one, /challenges to accept, /leaderboard to see who's on top.${aiEnabled() ? ' Or @mention me for match chat.' : ''}`,
+      { reply_markup: launchButton(ctx, '🚀 Open Mimic') },
     );
   }
 });
@@ -397,7 +397,7 @@ async function configureMenu() {
       { command: 'bet', description: 'Pick a fixture and post a challenge' },
       { command: 'challenges', description: 'Open challenges to accept' },
       { command: 'leaderboard', description: "Who's winning" },
-      { command: 'help', description: 'How MimicTG works' },
+      { command: 'help', description: 'How Mimic works' },
     ]);
   } catch (e) {
     console.warn('setMyCommands failed:', (e as Error).message);

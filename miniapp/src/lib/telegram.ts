@@ -66,7 +66,7 @@ export function haptic(type: 'success' | 'error' | 'light' = 'light'): void {
 function applyTheme(): void {
   const w = tg();
   if (!w) return;
-  // MimicTG keeps its own brand identity (dark canvas + yellow accent) rather
+  // Mimic keeps its own brand identity (dark canvas + yellow accent) rather
   // than adopting the user's Telegram theme — otherwise the look changes per
   // user. We only record the color scheme in case we ever want to react to it.
   if (w.colorScheme) document.documentElement.setAttribute('data-theme', w.colorScheme);

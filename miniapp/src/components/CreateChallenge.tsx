@@ -32,7 +32,7 @@ export function CreateChallenge({
         try {
           opponentAddr = (await api.resolveUsername(uname)).address;
         } catch {
-          throw new Error(`@${uname} hasn't opened MimicTG yet — leave blank for an open bet`);
+          throw new Error(`@${uname} hasn't opened Mimic yet — leave blank for an open bet`);
         }
       }
       await wallet!.createChallenge({

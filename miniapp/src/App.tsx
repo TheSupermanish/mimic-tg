@@ -86,9 +86,7 @@ function Main() {
   return (
     <div className="app">
       <div className="topbar">
-        <div className="brand">
-          Mimic<span>TG</span>
-        </div>
+        <div className="brand">Mimic</div>
       </div>
       <WalletHeader />
 
