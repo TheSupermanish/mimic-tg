@@ -73,14 +73,25 @@ export class Wallet {
     return this.account.getBalance();
   }
 
-  /** Wait for a submitted tx / UserOp to be mined (works for both wallet modes). */
-  private async waitMined(hash: string): Promise<void> {
+  /** Wait for a submitted tx / UserOp to be mined; returns the receipt. */
+  private async waitMined(hash: string): Promise<any> {
     for (let i = 0; i < 60; i++) {
       const r = await this.account.getTransactionReceipt(hash).catch(() => null);
-      if (r) return;
+      if (r) return r;
       await new Promise((res) => setTimeout(res, 2000));
     }
     throw new Error('Transaction not confirmed in time — please retry');
+  }
+
+  /**
+   * The real on-chain transaction hash. In gasless mode the wallet returns a
+   * UserOperation hash, which BaseScan's /tx/ endpoint cannot resolve; the mined
+   * receipt carries the actual bundler transaction hash, so prefer that.
+   */
+  private onchainHash(receipt: any, fallback: string): string {
+    return (
+      receipt?.receipt?.transactionHash ?? receipt?.transactionHash ?? receipt?.hash ?? fallback
+    );
   }
 
   private send(data: string) {
@@ -92,8 +103,8 @@ export class Wallet {
   async faucet(): Promise<string> {
     const data = new Interface(['function faucet()']).encodeFunctionData('faucet', []);
     const res = await this.account.sendTransaction({ to: this.cfg.mockUsdt, value: 0, data });
-    await this.waitMined(res.hash);
-    return res.hash;
+    const rc = await this.waitMined(res.hash);
+    return this.onchainHash(rc, res.hash);
   }
 
   /**
@@ -126,26 +137,26 @@ export class Wallet {
       p.opponent && p.opponent !== '' ? p.opponent : ZERO,
     ]);
     const res = await this.send(data);
-    await this.waitMined(res.hash);
-    return res.hash;
+    const rc = await this.waitMined(res.hash);
+    return this.onchainHash(rc, res.hash);
   }
 
   async acceptChallenge(id: number, pick: Outcome, stake: bigint): Promise<string> {
     await this.ensureApproval(stake);
     const res = await this.send(marketIface.encodeFunctionData('acceptChallenge', [id, pick]));
-    await this.waitMined(res.hash);
-    return res.hash;
+    const rc = await this.waitMined(res.hash);
+    return this.onchainHash(rc, res.hash);
   }
 
   async claim(id: number): Promise<string> {
     const res = await this.send(marketIface.encodeFunctionData('claim', [id]));
-    await this.waitMined(res.hash);
-    return res.hash;
+    const rc = await this.waitMined(res.hash);
+    return this.onchainHash(rc, res.hash);
   }
 
   async cancel(id: number): Promise<string> {
     const res = await this.send(marketIface.encodeFunctionData('cancelChallenge', [id]));
-    await this.waitMined(res.hash);
-    return res.hash;
+    const rc = await this.waitMined(res.hash);
+    return this.onchainHash(rc, res.hash);
   }
 }
