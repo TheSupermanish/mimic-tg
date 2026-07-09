@@ -3,15 +3,26 @@ import WalletManagerEvm from '@tetherto/wdk-wallet-evm';
 import WalletManagerEvm7702Gasless from '@tetherto/wdk-wallet-evm-7702-gasless';
 import { Interface, MaxUint256 } from 'ethers';
 import MarketAbi from '@mimic/shared/src/deployed/abis/PredictionMarket.json';
+import PropAbi from '@mimic/shared/src/deployed/abis/PropMarket.json';
 import type { Outcome } from '@mimic/shared';
 import type { AppConfig } from './api';
 
 const marketIface = new Interface(MarketAbi as any);
+const propIface = new Interface(PropAbi as any);
 
 export interface CreateChallengeParams {
   matchId: string;
   kickoff: number; // unix seconds
   pick: Outcome;
+  stake: bigint; // base units
+  opponent?: string | null;
+}
+
+export interface CreatePropParams {
+  question: string;
+  matchId: string;
+  resolveBy: number; // unix seconds
+  backsYes: boolean;
   stake: bigint; // base units
   opponent?: string | null;
 }
@@ -112,15 +123,15 @@ export class Wallet {
    * MINED — otherwise a dependent createChallenge/accept would be simulated
    * against a stale (zero) allowance and fail gas estimation.
    */
-  private async ensureApproval(amount: bigint): Promise<void> {
-    const current: bigint = await this.account.getAllowance(
-      this.cfg.mockUsdt,
-      this.cfg.predictionMarket,
-    );
+  private async ensureApproval(
+    amount: bigint,
+    spender: string = this.cfg.predictionMarket,
+  ): Promise<void> {
+    const current: bigint = await this.account.getAllowance(this.cfg.mockUsdt, spender);
     if (current >= amount) return;
     const res = await this.account.approve({
       token: this.cfg.mockUsdt,
-      spender: this.cfg.predictionMarket,
+      spender,
       amount: MaxUint256,
     });
     if (res?.hash) await this.waitMined(res.hash);
@@ -156,6 +167,45 @@ export class Wallet {
 
   async cancel(id: number): Promise<string> {
     const res = await this.send(marketIface.encodeFunctionData('cancelChallenge', [id]));
+    const rc = await this.waitMined(res.hash);
+    return this.onchainHash(rc, res.hash);
+  }
+
+  // ─── Props ("bet on anything", YES/NO via PropMarket) ─────────────────────
+  private sendProp(data: string) {
+    return this.account.sendTransaction({ to: this.cfg.propMarket, value: 0, data });
+  }
+
+  async createProp(p: CreatePropParams): Promise<string> {
+    await this.ensureApproval(p.stake, this.cfg.propMarket);
+    const data = propIface.encodeFunctionData('createProp', [
+      p.question,
+      p.matchId,
+      p.resolveBy,
+      p.backsYes,
+      p.stake,
+      p.opponent && p.opponent !== '' ? p.opponent : ZERO,
+    ]);
+    const res = await this.sendProp(data);
+    const rc = await this.waitMined(res.hash);
+    return this.onchainHash(rc, res.hash);
+  }
+
+  async acceptProp(id: number, stake: bigint): Promise<string> {
+    await this.ensureApproval(stake, this.cfg.propMarket);
+    const res = await this.sendProp(propIface.encodeFunctionData('acceptProp', [id]));
+    const rc = await this.waitMined(res.hash);
+    return this.onchainHash(rc, res.hash);
+  }
+
+  async claimProp(id: number): Promise<string> {
+    const res = await this.sendProp(propIface.encodeFunctionData('claim', [id]));
+    const rc = await this.waitMined(res.hash);
+    return this.onchainHash(rc, res.hash);
+  }
+
+  async cancelProp(id: number): Promise<string> {
+    const res = await this.sendProp(propIface.encodeFunctionData('cancelProp', [id]));
     const rc = await this.waitMined(res.hash);
     return this.onchainHash(rc, res.hash);
   }
