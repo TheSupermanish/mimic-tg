@@ -29,7 +29,7 @@ function MatchCard({ m, onBet }: { m: Match; onBet?: (m: Match) => void }) {
         {hasScore(m) ? (
           <span className="score">{scoreText(m)}</span>
         ) : bettable ? (
-          <span className="pill open">BET →</span>
+          <span className="btn pitch sm">BET →</span>
         ) : null}
       </div>
     </div>

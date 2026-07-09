@@ -11,6 +11,7 @@ import {
   avatarGradient,
   avatarInitial,
 } from '../lib/format';
+import { celebrate } from '../lib/confetti';
 
 function Avatar({ seed, label }: { seed: string; label: string }) {
   return (
@@ -34,6 +35,8 @@ export function ChallengeCard({ c, onChanged }: { c: Challenge; onChanged: () =>
   const m = c.match;
   const stake = BigInt(c.stake);
   const pot = usdt(stake * 2n);
+  const iWon =
+    (isCreator && c.result === c.creatorPick) || (!!isTaker && c.result === c.takerPick);
 
   const title = m ? `${m.homeTeam} vs ${m.awayTeam}` : `Match ${c.matchId}`;
   const creatorName = c.creatorTgUsername ? `@${c.creatorTgUsername}` : shortAddr(c.creator);
@@ -154,9 +157,18 @@ export function ChallengeCard({ c, onChanged }: { c: Challenge; onChanged: () =>
             className="btn gold block sm"
             style={{ marginTop: 12 }}
             disabled={pending}
-            onClick={() => run(async () => (await wallet!.claim(c.id), onChanged()), 'Settled')}
+            onClick={() =>
+              run(
+                async () => {
+                  await wallet!.claim(c.id);
+                  if (iWon) celebrate();
+                  onChanged();
+                },
+                iWon ? 'You won! 🎉' : 'Settled',
+              )
+            }
           >
-            Claim winnings
+            {iWon ? 'Claim winnings 🏆' : 'Claim'}
           </button>
         ))}
 
