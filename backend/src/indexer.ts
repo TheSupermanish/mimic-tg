@@ -36,9 +36,41 @@ function notifyAccepted(c: Challenge): void {
     );
 }
 
+/** DM a named opponent once, the moment a directed challenge is created for them. */
+function notifyChallenged(c: Challenge): void {
+  if (!c.opponent) return;
+  const tgId = tgIdFor(c.opponent);
+  if (!tgId) return; // opponent hasn't linked a wallet / started the bot — nothing to DM
+  const label = c.match ? `${c.match.homeTeam} vs ${c.match.awayTeam}` : `match ${c.matchId}`;
+  const stake = fromBaseUnits(BigInt(c.stake));
+  const pot = fromBaseUnits(BigInt(c.stake) * 2n);
+  const who = c.creatorTgUsername
+    ? '@' + c.creatorTgUsername
+    : `${c.creator.slice(0, 6)}…${c.creator.slice(-4)}`;
+  const side =
+    c.creatorPick === Outcome.Home
+      ? c.match?.homeTeam ?? 'Home'
+      : c.creatorPick === Outcome.Away
+        ? c.match?.awayTeam ?? 'Away'
+        : 'the draw';
+  const btn = config.botUsername
+    ? { text: '🎯 Take the other side', url: `https://t.me/${config.botUsername}?start=accept_${c.id}` }
+    : undefined;
+  void notify(
+    tgId,
+    `🎯 <b>You've been challenged!</b>\n${who} backs <b>${side}</b> on <b>${label}</b> for <b>${stake} USDt</b>. Take the other side and the winner scoops the <b>${pot} USDt</b> pot ⚽️`,
+    btn,
+  );
+}
+
 // Raw chain data for terminal (settled/cancelled) challenges — frozen, so the
 // indexer never re-fetches them from the RPC (keeps us under rate limits).
 const terminalCache = new Map<number, any>();
+
+// False until the first successful reindex has baselined the current challenge
+// set, so opponent DMs only fire for challenges created *after* boot (never a
+// backlog blast on startup / restart).
+let primed = false;
 
 /**
  * Rebuilds the challenge set from on-chain state. Terminal challenges are
@@ -103,15 +135,24 @@ export async function reindex(): Promise<Challenge[]> {
     out.push(challenge);
   }
 
-  // Detect open→matched transitions since the last poll and nudge both sides.
+  // Detect since-last-poll transitions and nudge the relevant people. `primed`
+  // is false on the very first poll (and after a restart, before the first
+  // setChallenges), so we baseline the existing challenges silently instead of
+  // blasting notifications for every historical bet.
   for (const c of out) {
     const prev = getChallenge(c.id);
+    // open → matched: someone took the bet — nudge both sides.
     if (prev && prev.status === ChallengeStatus.Open && c.status === ChallengeStatus.Matched) {
       notifyAccepted(c);
+    }
+    // newly seen directed challenge, still open → DM the named opponent once.
+    if (primed && !prev && c.status === ChallengeStatus.Open && c.opponent && !c.taker) {
+      notifyChallenged(c);
     }
   }
 
   setChallenges(out);
+  primed = true;
   return out;
 }
 
