@@ -25,6 +25,8 @@
   --tg-button-text: #ffffff;
   --radius: 18px;
   --shadow: 4px 5px 0 var(--ink); /* hard sticker shadow */
+  --font-display: 'Fredoka', 'Trebuchet MS', system-ui, sans-serif; /* chunky rounded */
+  --font-body: 'Nunito', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 
 * {
@@ -40,7 +42,7 @@ body,
 body {
   background: var(--tg-bg);
   color: var(--tg-text);
-  font-family: 'Trebuchet MS', 'Montserrat', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-family: var(--font-body);
   font-size: 15px;
   line-height: 1.45;
   /* faint grass + confetti-dot motif */
@@ -56,6 +58,22 @@ body {
 .score,
 .balance-card .amount {
   font-variant-numeric: tabular-nums;
+}
+
+/* chunky rounded display face on headings, wordmark, and chunky labels */
+.brand,
+.hero h1,
+.section-title,
+.btn,
+.balance-card .amount,
+.pill,
+.pot-chip,
+.gasless-badge,
+.pick,
+.stake-row .chip,
+.go,
+.tabbar button {
+  font-family: var(--font-display);
 }
 
 .app {
@@ -275,14 +293,34 @@ body {
   font-size: 16px;
   min-width: 0;
 }
-.teams img {
-  width: 26px;
-  height: 26px;
+/* national-team flag emoji */
+.teams .flag {
+  font-size: 21px;
+  line-height: 1;
+  vertical-align: -2px;
+}
+/* club crest fallback — show the real logo, rectangular, not circle-cropped */
+.teams img.crest-img {
+  height: 20px;
+  width: auto;
+  max-width: 28px;
   object-fit: contain;
-  background: #eaf7ee;
+  vertical-align: -4px;
+}
+/* "Bet ->" is a label on a fully-tappable card, not a separate button:
+   pointer-events:none so the tap always lands on the card. */
+.go {
+  font-weight: 700;
+  font-size: 13px;
+  color: #ffffff;
+  background: var(--pitch-fill);
   border: 2px solid var(--ink);
-  border-radius: 50%;
-  padding: 2px;
+  border-radius: 999px;
+  padding: 6px 12px;
+  box-shadow: 2px 2px 0 var(--ink);
+  pointer-events: none;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 .comp {
   font-size: 12px;

@@ -10,6 +10,7 @@ import {
   isChallengeExpired,
   avatarGradient,
   avatarInitial,
+  withFlag,
 } from '../lib/format';
 import { celebrate } from '../lib/confetti';
 
@@ -38,7 +39,7 @@ export function ChallengeCard({ c, onChanged }: { c: Challenge; onChanged: () =>
   const iWon =
     (isCreator && c.result === c.creatorPick) || (!!isTaker && c.result === c.takerPick);
 
-  const title = m ? `${m.homeTeam} vs ${m.awayTeam}` : `Match ${c.matchId}`;
+  const title = m ? `${withFlag(m.homeTeam)} vs ${withFlag(m.awayTeam)}` : `Match ${c.matchId}`;
   const creatorName = c.creatorTgUsername ? `@${c.creatorTgUsername}` : shortAddr(c.creator);
 
   const live = !!m && (m.status === 'IN_PLAY' || m.status === 'PAUSED');

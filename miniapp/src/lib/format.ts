@@ -80,6 +80,32 @@ export function scoreText(m: Match): string {
   return hasScore(m) ? `${m.scoreHome}–${m.scoreAway}` : '';
 }
 
+/** Flag emoji for a national-team name (World Cup fixtures). '' for clubs/unknown,
+ * so callers can fall back to the crest image. */
+const FLAGS: Record<string, string> = {
+  argentina: '🇦🇷', france: '🇫🇷', morocco: '🇲🇦', spain: '🇪🇸', belgium: '🇧🇪',
+  norway: '🇳🇴', england: '🏴󠁧󠁢󠁥󠁮󠁧󠁿', switzerland: '🇨🇭', egypt: '🇪🇬', mexico: '🇲🇽',
+  'united states': '🇺🇸', usa: '🇺🇸', portugal: '🇵🇹', colombia: '🇨🇴', brazil: '🇧🇷',
+  germany: '🇩🇪', netherlands: '🇳🇱', croatia: '🇭🇷', italy: '🇮🇹', uruguay: '🇺🇾',
+  japan: '🇯🇵', 'south korea': '🇰🇷', 'korea republic': '🇰🇷', senegal: '🇸🇳', ghana: '🇬🇭',
+  nigeria: '🇳🇬', cameroon: '🇨🇲', ecuador: '🇪🇨', poland: '🇵🇱', denmark: '🇩🇰',
+  sweden: '🇸🇪', serbia: '🇷🇸', 'ivory coast': '🇨🇮', "cote d'ivoire": '🇨🇮', tunisia: '🇹🇳',
+  algeria: '🇩🇿', australia: '🇦🇺', canada: '🇨🇦', 'costa rica': '🇨🇷', 'saudi arabia': '🇸🇦',
+  qatar: '🇶🇦', iran: '🇮🇷', wales: '🏴󠁧󠁢󠁷󠁬󠁳󠁿', scotland: '🏴󠁧󠁢󠁳󠁣󠁴󠁿', peru: '🇵🇪',
+  chile: '🇨🇱', paraguay: '🇵🇾', turkey: '🇹🇷', turkiye: '🇹🇷', austria: '🇦🇹', ukraine: '🇺🇦',
+  czechia: '🇨🇿', 'czech republic': '🇨🇿', greece: '🇬🇷', panama: '🇵🇦', jamaica: '🇯🇲',
+  'south africa': '🇿🇦', 'new zealand': '🇳🇿', honduras: '🇭🇳',
+};
+export function flagEmoji(name?: string): string {
+  if (!name) return '';
+  return FLAGS[name.trim().toLowerCase()] ?? '';
+}
+/** "🇦🇷 Argentina" when we have a flag, else just the name. */
+export function withFlag(name?: string): string {
+  const f = flagEmoji(name);
+  return f ? `${f} ${name}` : name ?? '';
+}
+
 /** Short status label for a match badge. */
 export function statusLabel(m: Match): string {
   switch (m.status) {

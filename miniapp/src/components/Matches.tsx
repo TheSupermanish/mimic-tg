@@ -2,8 +2,16 @@ import { useState } from 'react';
 import { Match } from '@mimic/shared';
 import { api } from '../lib/api';
 import { usePolling } from '../ui';
-import { isBettable, isLive, hasScore, scoreText, statusLabel } from '../lib/format';
+import { isBettable, isLive, hasScore, scoreText, statusLabel, flagEmoji } from '../lib/format';
 import { CreateChallenge } from './CreateChallenge';
+
+/** National-team flag emoji if we know it, else the club crest (rectangular). */
+function Crest({ name, crest }: { name: string; crest?: string }) {
+  const f = flagEmoji(name);
+  if (f) return <span className="flag">{f}</span>;
+  if (crest) return <img className="crest-img" src={crest} alt="" />;
+  return null;
+}
 
 function MatchCard({ m, onBet }: { m: Match; onBet?: (m: Match) => void }) {
   const bettable = !!onBet;
@@ -20,16 +28,14 @@ function MatchCard({ m, onBet }: { m: Match; onBet?: (m: Match) => void }) {
       </div>
       <div className="match-head">
         <div className="teams">
-          {m.homeCrest && <img src={m.homeCrest} alt="" />}
-          {m.homeTeam}
+          <Crest name={m.homeTeam} crest={m.homeCrest} /> {m.homeTeam}
           <span className="vs">vs</span>
-          {m.awayCrest && <img src={m.awayCrest} alt="" />}
-          {m.awayTeam}
+          <Crest name={m.awayTeam} crest={m.awayCrest} /> {m.awayTeam}
         </div>
         {hasScore(m) ? (
           <span className="score">{scoreText(m)}</span>
         ) : bettable ? (
-          <span className="btn pitch sm">BET →</span>
+          <span className="go">Bet →</span>
         ) : null}
       </div>
     </div>
