@@ -50,6 +50,7 @@ function persona(context: string): string {
     'Personality: sharp, funny, a little cheeky trash-talk, genuinely knows football. Never boring, never a corporate assistant.',
     'Keep replies SHORT — 1-3 sentences, Telegram-chat style. Use the occasional emoji, not a wall of them.',
     'You can talk fixtures, form, predictions and banter. Never invent odds or claim to move money yourself — the on-chain escrow does that.',
+    'DATA: the live context below gives you final scores, standings, competition top scorers, and — for recently played matches — the actual GOALSCORERS (grounded from the web). USE them freely: if someone asks "who scored", answer from the "Goalscorers & match detail" section. Only if a specific match is NOT listed there, say you have the scoreline but not the goal breakdown yet. Never invent scorer names, assists, cards, or incidents that are not in the context.',
     "You never see or handle anyone's keys or funds. Do not give financial advice framed as guarantees; this is friendly fan betting with test USDt.",
     '',
     'ONE-TAP BETS: when you talk about a specific UPCOMING fixture from the list below that the user could bet on, end your reply with a marker on its own line: [[BET:<matchId>]] — using the EXACT numeric id shown for that fixture. If you are clearly backing one side, add the pick so the app pre-selects it: [[BET:<matchId>:HOME]] (home team wins), [[BET:<matchId>:AWAY]] (away team wins), or [[BET:<matchId>:DRAW]]. Include at most one marker, and only for a real upcoming fixture in the list (never for live/finished matches or made-up ids). The app turns it into a one-tap "bet on this match" button, so do not also paste a link.',
@@ -63,7 +64,11 @@ function persona(context: string): string {
 
 /** Build grounding context from live fixtures + leaderboard. Best-effort. */
 async function buildContext(): Promise<string> {
-  const [matches, board] = await Promise.all([api.matches(), api.leaderboard()]);
+  const [matches, board, insights] = await Promise.all([
+    api.matches(),
+    api.leaderboard(),
+    api.insights(),
+  ]);
   const fixtures = matches
     .filter((m) => (m.status === 'SCHEDULED' || m.status === 'TIMED') && !/\btbd\b/i.test(m.homeTeam + m.awayTeam))
     .slice(0, 10)
@@ -81,9 +86,33 @@ async function buildContext(): Promise<string> {
         `${i + 1}. ${r.username ? '@' + r.username : r.address.slice(0, 8)} — ${fromBaseUnits(r.net)} USDt net (${r.wins}W/${r.losses}L)`,
     )
     .join('\n');
+  const scorers = insights.competitions
+    .flatMap((c) =>
+      c.scorers
+        .slice(0, 8)
+        .map(
+          (s, i) =>
+            `${i + 1}. ${s.player} (${s.team}) — ${s.goals} goals${s.assists ? `, ${s.assists} assists` : ''}`,
+        ),
+    )
+    .join('\n');
+  const standings = insights.competitions
+    .flatMap((c) =>
+      c.standings.map(
+        (g) => `${g.group}: ` + g.table.slice(0, 4).map((r) => `${r.position}.${r.team} ${r.points}pts`).join(', '),
+      ),
+    )
+    .join('\n');
+  const goalscorers = insights.matches
+    .map((m) => `- ${m.teams} (${m.score}):\n  ${m.summary.replace(/\n/g, '\n  ')}`)
+    .join('\n');
+
   return [
     `Upcoming fixtures (use the id for [[BET:id]]):\n${fixtures || '(none loaded)'}`,
     liveScores ? `\nLive & recent scores:\n${liveScores}` : '',
+    goalscorers ? `\nGoalscorers & match detail (grounded from the web — answer "who scored" from here):\n${goalscorers}` : '',
+    scorers ? `\nCompetition top scorers:\n${scorers}` : '',
+    standings ? `\nStandings:\n${standings}` : '',
     `\nLeaderboard (net USDt):\n${top || '(no settled bets yet)'}`,
   ].join('\n');
 }

@@ -71,6 +71,26 @@ Point the bot at your Mini App by setting `MINIAPP_URL` (your ngrok https URL) i
 The Mini App reads its contract addresses at runtime from the backend `GET /config`, so no
 rebuild is needed after deploying. Set `VITE_BACKEND_URL` if the backend isn't on localhost.
 
+#### Testing the live bot locally (single token)
+
+The bot uses **long-polling on one `TELEGRAM_BOT_TOKEN`**, and Telegram delivers updates to
+only one `getUpdates` consumer. The deployed container (tg.mimic.markets) polls that token
+24/7, so a second local bot will 409 ("terminated by other getUpdates request") and your
+local changes won't reach `@mimic_markets_bot`. To hand the token to your laptop:
+
+```bash
+# On the VM: keep backend + Mini App live, but stop the deployed bot.
+RUN_BOT=0 docker compose -f deploy/docker-compose.yml up -d
+
+# On your laptop: run the backend + bot against the same live token.
+npm run dev:backend
+npm run dev:bot            # now @mimic_markets_bot is driven by your local code
+```
+
+`MINIAPP_URL` stays `https://tg.mimic.markets`, so the buttons your local bot sends still
+open the live Mini App. When you're done, redeploy without the flag (`docker compose up -d`,
+`RUN_BOT` defaults to `1`) to give the token back to the deployed bot.
+
 ### Demo flow
 
 1. Open the bot → **Open MimicTG** → create a wallet (12-word phrase, PIN-encrypted on device).

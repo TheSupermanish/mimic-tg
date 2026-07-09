@@ -2,7 +2,8 @@ import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import { config, assertConfig, gaslessConfig } from './config.js';
 import { CHAIN, fromBaseUnits, Outcome, ChallengeStatus } from '@mimic/shared';
-import { getMatches } from './football.js';
+import { getMatches, getInsights } from './football.js';
+import { startFactsWorker, getRecentFacts } from './match-facts.js';
 import { startIndexer } from './indexer.js';
 import { startResolver } from './resolver.js';
 import { verifyInitData } from './auth.js';
@@ -24,6 +25,14 @@ app.get('/config', async () => ({
 }));
 
 app.get('/matches', async () => ({ matches: await getMatches() }));
+
+// Football brain for the AI: top scorers + standings per active competition,
+// plus grounded goalscorer summaries for recently-played matches. Served from
+// caches, so this is cheap to call on every AI message.
+app.get('/insights', async () => ({
+  competitions: await getInsights(),
+  matches: getRecentFacts().map((f) => ({ teams: f.teams, score: f.score, summary: f.summary })),
+}));
 
 // Single fixture (from the cached feed — no extra API call). Used by bet deep-links.
 app.get<{ Params: { id: string } }>('/matches/:id', async (req, reply) => {
@@ -115,6 +124,7 @@ app.post<{ Body: { matchId: string; outcome: Outcome } }>('/admin/resolve', asyn
 // ─── Background workers ────────────────────────────────────────────────────
 assertConfig(['footballApiKey', 'predictionMarketAddress', 'botToken']);
 startIndexer();
+startFactsWorker(); // grounded goalscorer enrichment (chat colour only)
 startResolver(30_000, (e) => {
   // notify both sides of a settlement
   const stake = getChallenge(e.challengeId)?.stake;

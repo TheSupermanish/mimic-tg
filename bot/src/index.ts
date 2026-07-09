@@ -269,10 +269,23 @@ bot.on('message:text', async (ctx) => {
   const clean = ctx.me?.username ? text.replaceAll(`@${ctx.me.username}`, '').trim() : text;
   if (!clean) return;
 
-  // "results" / "scores" / "scoreboard" → structured board, not an AI prose blob
-  if (/\b(scores?|results?|scoreboard|scoreline)\b/i.test(clean) && clean.length <= 30) {
+  // Route only BARE, command-like asks to the structured views. Anchored (not a
+  // loose \bword\b test) so a real question that merely contains "games"/"score"
+  // — e.g. "who scored in the last games?" — still goes to the AI, not here.
+  const asks = clean.trim();
+
+  // "scores" / "results" / "scoreboard" → structured scoreboard.
+  if (/^(show |latest |the )?(scores?|results?|score ?board|score ?line)!?\??$/i.test(asks)) {
     console.log(`[msg] → scoreboard`);
     await sendScores(ctx);
+    return;
+  }
+
+  // "matches" / "fixtures" / "upcoming" / "games" → interactive tap-to-bet list.
+  // Same handler the /matches command uses.
+  if (/^(show |list |the )?(upcoming )?(matches|fixtures|games|upcoming)( to bet)?!?\??$/i.test(asks)) {
+    console.log(`[msg] → matches`);
+    await sendMatches(ctx);
     return;
   }
 
@@ -399,7 +412,20 @@ async function configureMenu() {
   }
 }
 
-bot.catch((err) => console.error('bot error', err));
+bot.catch((err) => {
+  // 409 = another process is polling the same TELEGRAM_BOT_TOKEN (usually the
+  // deployed container). Long-polling allows only one consumer, so surface a
+  // clear hint instead of a confusing silent flap.
+  const desc = (err?.error as any)?.description ?? (err?.error as any)?.message ?? '';
+  if (String(desc).includes('terminated by other getUpdates')) {
+    console.error(
+      '[bot] 409 conflict: another instance is polling this token. ' +
+        'To test locally, stop the deployed bot first (set RUN_BOT=0 on the VM and redeploy).',
+    );
+    return;
+  }
+  console.error('bot error', err);
+});
 
 await configureMenu();
 console.log(`[bot] starting long-polling… (AI: ${aiMode()})`);

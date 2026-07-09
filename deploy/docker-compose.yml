@@ -14,6 +14,9 @@ services:
       GOOGLE_APPLICATION_CREDENTIALS: /app/vertex-sa.json
       MINIAPP_URL: https://tg.mimic.markets
       BACKEND_PUBLIC_URL: http://localhost:8787
+      # Set RUN_BOT=0 (e.g. `RUN_BOT=0 docker compose up -d`) to free the single
+      # Telegram token so you can run the bot locally; backend + Mini App stay up.
+      RUN_BOT: ${RUN_BOT:-1}
     volumes:
       - ../vertex-sa.json:/app/vertex-sa.json:ro
     networks:
