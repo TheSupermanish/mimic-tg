@@ -91,12 +91,25 @@ body {
   padding: 8px 2px 14px;
 }
 .brand {
-  font-weight: 800;
+  font-weight: 700;
   font-size: 23px;
   letter-spacing: -0.02em;
+  display: flex;
+  align-items: center;
+  gap: 9px;
 }
-.brand span {
-  color: var(--danger); /* playful red "TG" */
+/* football roundel logomark — ball in an ink disc with a green sticker-shadow */
+.brand .mark {
+  width: 31px;
+  height: 31px;
+  border-radius: 50%;
+  background: var(--ink);
+  border: 2.5px solid var(--ink);
+  box-shadow: 2px 2px 0 var(--pitch-fill);
+  display: grid;
+  place-items: center;
+  font-size: 17px;
+  line-height: 1;
 }
 
 /* balance = dark forest sticker for contrast against the cream page */
@@ -707,6 +720,88 @@ textarea:focus {
   color: var(--tg-hint);
   font-weight: 700;
   padding: 0 4px;
+}
+
+/* ── match detail (stats hub) ─────────────────────────────── */
+.detail-teams {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 8px;
+}
+.dt {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  width: 40%;
+  text-align: center;
+}
+.dt .flag-lg {
+  font-size: 42px;
+  line-height: 1;
+}
+.dt-name {
+  font-weight: 800;
+  font-size: 15px;
+}
+.dt-score {
+  align-self: center;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 32px;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.facts {
+  white-space: pre-line;
+  font-size: 13.5px;
+  line-height: 1.55;
+}
+.ai-tag {
+  margin-top: 10px;
+  font-size: 11px;
+  color: var(--pitch);
+  font-weight: 700;
+}
+.stattable {
+  padding: 6px 8px;
+}
+.stattable .trow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 6px;
+  border-radius: 10px;
+  font-size: 13px;
+}
+.stattable .trow.hi {
+  background: rgba(255, 210, 63, 0.3);
+  font-weight: 800;
+}
+.stattable .pos {
+  width: 20px;
+  color: var(--tg-hint);
+  font-weight: 800;
+  text-align: center;
+}
+.stattable .tm {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.stattable .pl {
+  color: var(--tg-hint);
+  font-size: 12px;
+}
+.stattable .pts {
+  font-weight: 800;
+  min-width: 28px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
 }
 
 @media (prefers-reduced-motion: reduce) {

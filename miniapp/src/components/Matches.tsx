@@ -4,6 +4,7 @@ import { api } from '../lib/api';
 import { usePolling } from '../ui';
 import { isBettable, isLive, hasScore, scoreText, statusLabel, flagEmoji } from '../lib/format';
 import { CreateChallenge } from './CreateChallenge';
+import { MatchDetail } from './MatchDetail';
 
 /** National-team flag emoji if we know it, else the club crest (rectangular). */
 function Crest({ name, crest }: { name: string; crest?: string }) {
@@ -13,15 +14,12 @@ function Crest({ name, crest }: { name: string; crest?: string }) {
   return null;
 }
 
-function MatchCard({ m, onBet }: { m: Match; onBet?: (m: Match) => void }) {
-  const bettable = !!onBet;
+/** Every card opens the match detail (stats hub); the detail is where you bet. */
+function MatchCard({ m, onOpen }: { m: Match; onOpen: (m: Match) => void }) {
   const live = isLive(m);
+  const bettable = isBettable(m);
   return (
-    <div
-      className="card"
-      onClick={bettable ? () => onBet!(m) : undefined}
-      style={bettable ? { cursor: 'pointer' } : undefined}
-    >
+    <div className="card" onClick={() => onOpen(m)} style={{ cursor: 'pointer' }}>
       <div className="comp">
         <span>{m.competition}</span>
         <span className={live ? 'pill live' : 'pill'}>{statusLabel(m)}</span>
@@ -35,7 +33,7 @@ function MatchCard({ m, onBet }: { m: Match; onBet?: (m: Match) => void }) {
         {hasScore(m) ? (
           <span className="score">{scoreText(m)}</span>
         ) : bettable ? (
-          <span className="go">Bet →</span>
+          <span className="go">Predict →</span>
         ) : null}
       </div>
     </div>
@@ -45,8 +43,20 @@ function MatchCard({ m, onBet }: { m: Match; onBet?: (m: Match) => void }) {
 export function Matches() {
   const { data: matches, loading } = usePolling<Match[]>(() => api.matches(), 30000);
   const [selected, setSelected] = useState<Match | null>(null);
+  const [detail, setDetail] = useState<Match | null>(null);
 
   if (selected) return <CreateChallenge match={selected} onDone={() => setSelected(null)} />;
+  if (detail)
+    return (
+      <MatchDetail
+        match={detail}
+        onBet={(m) => {
+          setDetail(null);
+          setSelected(m);
+        }}
+        onBack={() => setDetail(null)}
+      />
+    );
 
   const all = matches ?? [];
   const live = all.filter(isLive);
@@ -71,12 +81,12 @@ export function Matches() {
         <>
           <div className="section-title">🔴 Live now</div>
           {live.map((m) => (
-            <MatchCard key={m.id} m={m} />
+            <MatchCard key={m.id} m={m} onOpen={setDetail} />
           ))}
         </>
       )}
 
-      <div className="section-title">Upcoming — tap to bet</div>
+      <div className="section-title">Upcoming — tap for stats & to bet</div>
       {!loading && upcoming.length === 0 && (
         <div className="empty">
           No upcoming fixtures right now.
@@ -85,14 +95,14 @@ export function Matches() {
         </div>
       )}
       {upcoming.map((m) => (
-        <MatchCard key={m.id} m={m} onBet={setSelected} />
+        <MatchCard key={m.id} m={m} onOpen={setDetail} />
       ))}
 
       {finished.length > 0 && (
         <>
-          <div className="section-title">Recent results</div>
+          <div className="section-title">Recent results — tap for goals</div>
           {finished.map((m) => (
-            <MatchCard key={m.id} m={m} />
+            <MatchCard key={m.id} m={m} onOpen={setDetail} />
           ))}
         </>
       )}

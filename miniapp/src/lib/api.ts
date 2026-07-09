@@ -17,6 +17,23 @@ export interface AppConfig {
   gasless: GaslessConfig | null;
 }
 
+export interface MatchFacts {
+  matchId: string;
+  summary: string; // scorers/events (played) or form + H2H (upcoming), grounded
+  grounded: boolean;
+  kind: 'result' | 'preview';
+}
+export interface CompetitionInsight {
+  code: string;
+  name: string;
+  scorers: { player: string; team: string; goals: number; assists: number | null }[];
+  standings: { group: string; table: { position: number; team: string; played: number; points: number; goalDiff: number }[] }[];
+}
+export interface Insights {
+  competitions: CompetitionInsight[];
+  matches: { teams: string; score: string; summary: string }[];
+}
+
 // Default to same-origin '/api' (proxied to the backend by Vite) so the app
 // works both on localhost and when served through a public tunnel.
 const BASE = (import.meta.env.VITE_BACKEND_URL as string) || '/api';
@@ -40,6 +57,12 @@ export const api = {
   config: () => get<AppConfig>('/config'),
   matches: () => get<{ matches: Match[] }>('/matches').then((r) => r.matches),
   match: (id: string) => get<Match>(`/matches/${encodeURIComponent(id)}`),
+  matchFacts: (id: string) =>
+    get<MatchFacts>(`/matches/${encodeURIComponent(id)}/facts`).catch(
+      () => ({ matchId: id, summary: '', grounded: false, kind: 'result' }) as MatchFacts,
+    ),
+  insights: () =>
+    get<Insights>('/insights').catch(() => ({ competitions: [], matches: [] }) as Insights),
   markets: (q = '') => get<{ challenges: Challenge[] }>(`/markets${q}`).then((r) => r.challenges),
   market: (id: number) => get<Challenge>(`/markets/${id}`),
   resolveUsername: (username: string) =>

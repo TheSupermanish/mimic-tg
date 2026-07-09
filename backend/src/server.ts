@@ -3,7 +3,7 @@ import cors from '@fastify/cors';
 import { config, assertConfig, gaslessConfig } from './config.js';
 import { CHAIN, fromBaseUnits, Outcome, ChallengeStatus } from '@mimic/shared';
 import { getMatches, getInsights } from './football.js';
-import { startFactsWorker, getRecentFacts } from './match-facts.js';
+import { startFactsWorker, getRecentFacts, factsFor } from './match-facts.js';
 import { startIndexer } from './indexer.js';
 import { startResolver } from './resolver.js';
 import { verifyInitData } from './auth.js';
@@ -39,6 +39,13 @@ app.get<{ Params: { id: string } }>('/matches/:id', async (req, reply) => {
   const m = (await getMatches()).find((x) => x.id === req.params.id);
   if (!m) return reply.code(404).send({ error: 'match not found' });
   return m;
+});
+
+// Grounded facts for the match detail view: goalscorers/events for a played
+// match, or form + head-to-head for an upcoming one. Empty when not yet enriched.
+app.get<{ Params: { id: string } }>('/matches/:id/facts', async (req) => {
+  const f = factsFor(req.params.id);
+  return f ?? { matchId: req.params.id, summary: '', grounded: false, kind: 'result' };
 });
 
 // Markets, optionally filtered by ?status=open|matched|settled or ?address=0x..

@@ -21,6 +21,7 @@ import { getMatches } from './football.js';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const FACTS_FILE = resolve(__dirname, '../.data/match-facts.json');
 const LIVE_TTL = 2 * 60_000;
+const PREVIEW_TTL = 6 * 3_600_000; // upcoming previews refresh every ~6h as form changes
 
 export interface MatchFacts {
   matchId: string;
@@ -28,8 +29,9 @@ export interface MatchFacts {
   competition: string;
   score: string; // "3-2" | "in progress"
   status: string;
+  kind: 'result' | 'preview'; // result = scorers/events; preview = form + H2H
   kickoff: string;
-  summary: string; // grounded: goalscorers + one line of context
+  summary: string; // grounded: goalscorers+events (result) or form+H2H (preview)
   grounded: boolean; // false when no reliable web data was found
   attempts: number; // grounding attempts so far (bounds retries on "no data")
   at: number;
@@ -51,7 +53,7 @@ const ai = config.vertexProject
 try {
   if (existsSync(FACTS_FILE)) {
     for (const f of JSON.parse(readFileSync(FACTS_FILE, 'utf8')) as MatchFacts[])
-      facts.set(f.matchId, { ...f, attempts: f.attempts ?? 0 });
+      facts.set(f.matchId, { ...f, attempts: f.attempts ?? 0, kind: f.kind ?? 'result' });
     if (facts.size) console.log(`[facts] restored ${facts.size} match fact(s)`);
   }
 } catch {
@@ -86,14 +88,30 @@ async function withRetry<T>(fn: () => Promise<T>, tries = 3): Promise<T> {
   }
 }
 
+function isUpcoming(m: Match): boolean {
+  // test each name separately — concatenating "TBD"+"TBD" defeats \btbd\b
+  const tbd = /\btbd\b/i.test(m.homeTeam) || /\btbd\b/i.test(m.awayTeam);
+  return (
+    (m.status === 'SCHEDULED' || m.status === 'TIMED') &&
+    !tbd &&
+    new Date(m.utcKickoff).getTime() > Date.now()
+  );
+}
+
 function needsEnrich(m: Match): boolean {
   const live = m.status === 'IN_PLAY' || m.status === 'PAUSED';
-  if (m.status !== 'FINISHED' && !live) return false;
+  const upcoming = isUpcoming(m);
+  if (m.status !== 'FINISHED' && !live && !upcoming) return false;
   const f = facts.get(m.id);
   if (!f) return true;
   if (m.status === 'FINISHED') {
     if (f.grounded) return false; // frozen once we have real data
     // "no data" so far — retry a few times (spaced) before giving up
+    return f.attempts < MAX_ATTEMPTS && Date.now() - f.at > RETRY_COOLDOWN;
+  }
+  if (upcoming) {
+    // previews go stale as form changes — refresh on a long TTL
+    if (f.grounded) return Date.now() - f.at > PREVIEW_TTL;
     return f.attempts < MAX_ATTEMPTS && Date.now() - f.at > RETRY_COOLDOWN;
   }
   return Date.now() - f.at > LIVE_TTL; // live: refresh on TTL
@@ -106,17 +124,22 @@ async function enrich(m: Match): Promise<void> {
     const hasScore = typeof m.scoreHome === 'number' && typeof m.scoreAway === 'number';
     const score = hasScore ? `${m.scoreHome}-${m.scoreAway}` : 'in progress';
     const date = m.utcKickoff.slice(0, 10);
-    const prompt =
-      `Search the web for this exact real football match: ${m.homeTeam} vs ${m.awayTeam}, ` +
-      `${m.competition}, on ${date}, ${m.status === 'FINISHED' ? `final score ${score}` : `currently ${score}`}. ` +
-      `List the goalscorers for each team (with minute if known), plus one short line of context ` +
-      `(stage / notable events). Be factual and concise, max 4 lines. Do not invent names — ` +
-      `if you genuinely cannot find this specific match, reply with exactly NO_DATA.`;
+    const preview = isUpcoming(m);
+    const prompt = preview
+      ? `Give a short pre-match briefing for ${m.homeTeam} vs ${m.awayTeam} (${m.competition}), kicking off around ${date}. ` +
+        `Cover recent form (last 5 results) for each team, their historical head-to-head, and 1-2 key players to watch. ` +
+        `Use web search and general football knowledge. Do NOT predict or invent the result of this specific upcoming match. ` +
+        `Keep it factual, max 5 short lines. Only reply NO_DATA if you genuinely know nothing about these teams.`
+      : `Search the web for this exact real football match: ${m.homeTeam} vs ${m.awayTeam}, ` +
+        `${m.competition}, on ${date}, ${m.status === 'FINISHED' ? `final score ${score}` : `currently ${score}`}. ` +
+        `List the goalscorers for each team (with minute if known), plus one short line of context ` +
+        `(stage / notable events). Be factual and concise, max 4 lines. Do not invent names — ` +
+        `if you genuinely cannot find this specific match, reply with exactly NO_DATA.`;
     const r = await withRetry(() =>
       ai.models.generateContent({
         model: config.geminiModel,
         contents: prompt,
-        config: { tools: [{ googleSearch: {} }], maxOutputTokens: 400 },
+        config: { tools: [{ googleSearch: {} }], maxOutputTokens: 450 },
       }),
     );
     const text = (r.text ?? '').trim();
@@ -127,6 +150,7 @@ async function enrich(m: Match): Promise<void> {
       competition: m.competition,
       score,
       status: m.status,
+      kind: preview ? 'preview' : 'result',
       kickoff: m.utcKickoff,
       summary: grounded ? text : '',
       grounded,
@@ -134,7 +158,9 @@ async function enrich(m: Match): Promise<void> {
       at: Date.now(),
     });
     if (m.status === 'FINISHED') persist();
-    console.log(`[facts] ${m.homeTeam} v ${m.awayTeam} ${score} → ${grounded ? 'enriched' : 'no data'}`);
+    console.log(
+      `[facts] ${preview ? 'preview' : 'result'} ${m.homeTeam} v ${m.awayTeam} → ${grounded ? 'ok' : 'no data'}`,
+    );
   } catch (e) {
     console.warn(`[facts] enrich ${m.id} failed:`, (e as Error).message);
   } finally {
@@ -154,19 +180,29 @@ export function startFactsWorker(intervalMs = 15_000): void {
   }
   const tick = async () => {
     const matches = await getMatches().catch(() => [] as Match[]);
-    // finished (un-enriched) first, then live due for a refresh
-    const next =
-      matches.find((m) => m.status === 'FINISHED' && needsEnrich(m)) ?? matches.find(needsEnrich);
+    const needy = matches.filter(needsEnrich);
+    // Priority: live (fast-changing) → soonest upcoming (the previews users open
+    // before betting) → finished backfill. Upcoming no longer starves behind old
+    // results. Finished facts persist, so after a restart they're already done
+    // and the worker heads straight to upcoming.
+    const live = needy.find((m) => m.status === 'IN_PLAY' || m.status === 'PAUSED');
+    const upcoming = needy
+      .filter(isUpcoming)
+      .sort((a, b) => a.utcKickoff.localeCompare(b.utcKickoff))[0];
+    const finished = needy.find((m) => m.status === 'FINISHED');
+    const next = live ?? upcoming ?? finished;
     if (next) await enrich(next);
   };
   setTimeout(tick, 3000);
   setInterval(tick, intervalMs);
 }
 
-/** Grounded facts for recently-played matches, newest kickoff first. */
+/** Grounded RESULT facts (scorers) for recently-played matches, newest first.
+ * Previews are excluded — they belong to the match detail view, not the AI's
+ * "who scored" context. */
 export function getRecentFacts(limit = 8): MatchFacts[] {
   return [...facts.values()]
-    .filter((f) => f.grounded)
+    .filter((f) => f.grounded && f.kind !== 'preview')
     .sort((a, b) => b.kickoff.localeCompare(a.kickoff))
     .slice(0, limit);
 }
