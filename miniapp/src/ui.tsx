@@ -2,22 +2,38 @@ import { createContext, useContext, useState, useCallback, useEffect, useRef, Re
 import { haptic } from './lib/telegram';
 
 // ─── Toast ─────────────────────────────────────────────────────────────────
-const ToastCtx = createContext<(msg: string, kind?: 'ok' | 'err') => void>(() => {});
+export interface ToastLink {
+  href: string;
+  label: string;
+}
+const ToastCtx = createContext<(msg: string, kind?: 'ok' | 'err', link?: ToastLink) => void>(
+  () => {},
+);
 export const useToast = () => useContext(ToastCtx);
 
 export function ToastProvider({ children }: { children: ReactNode }) {
-  const [msg, setMsg] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ msg: string; link?: ToastLink } | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout>>();
-  const show = useCallback((m: string, kind: 'ok' | 'err' = 'ok') => {
+  const show = useCallback((m: string, kind: 'ok' | 'err' = 'ok', link?: ToastLink) => {
     haptic(kind === 'ok' ? 'success' : 'error');
-    setMsg(m);
+    setToast({ msg: m, link });
     clearTimeout(timer.current);
-    timer.current = setTimeout(() => setMsg(null), 3200);
+    // linger longer when there's a link to tap (e.g. a BaseScan tx receipt)
+    timer.current = setTimeout(() => setToast(null), link ? 7500 : 3200);
   }, []);
   return (
     <ToastCtx.Provider value={show}>
       {children}
-      {msg && <div className="toast">{msg}</div>}
+      {toast && (
+        <div className="toast">
+          {toast.msg}
+          {toast.link && (
+            <a className="toast-link" href={toast.link.href} target="_blank" rel="noreferrer">
+              {toast.link.label}
+            </a>
+          )}
+        </div>
+      )}
     </ToastCtx.Provider>
   );
 }
@@ -54,13 +70,15 @@ export function useAction() {
   const [pending, setPending] = useState(false);
   const toast = useToast();
   const run = useCallback(
-    async (fn: () => Promise<void>, okMsg?: string) => {
+    async <T,>(fn: () => Promise<T>, okMsg?: string): Promise<T | undefined> => {
       setPending(true);
       try {
-        await fn();
+        const result = await fn();
         if (okMsg) toast(okMsg, 'ok');
+        return result;
       } catch (e) {
         toast((e as Error).message || 'Something went wrong', 'err');
+        return undefined;
       } finally {
         setPending(false);
       }

@@ -1,10 +1,11 @@
 import { useApp } from '../state';
-import { usePolling, useAction } from '../ui';
-import { shortAddr, usdt } from '../lib/format';
+import { usePolling, useAction, useToast } from '../ui';
+import { shortAddr, usdt, txLink } from '../lib/format';
 
 export function WalletHeader() {
-  const { wallet, username } = useApp();
+  const { wallet, username, config } = useApp();
   const { pending, run } = useAction();
+  const toast = useToast();
   const { data: balance, refresh } = usePolling(
     () => wallet!.usdtBalance(),
     10000,
@@ -29,9 +30,10 @@ export function WalletHeader() {
           disabled={pending}
           onClick={() =>
             run(async () => {
-              await wallet.faucet();
+              const hash = await wallet.faucet();
               setTimeout(refresh, 2500);
-            }, '+1000 test USDt on the way')
+              return hash;
+            }).then((hash) => hash && toast('+1000 test USDt on the way', 'ok', txLink(config?.explorer, hash)))
           }
         >
           {pending ? '…' : '🪙 Get test USDt'}

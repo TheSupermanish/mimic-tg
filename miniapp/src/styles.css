@@ -675,6 +675,13 @@ textarea:focus {
   border: 2.5px solid var(--ink);
   box-shadow: var(--shadow);
 }
+.toast-link {
+  display: inline-block;
+  margin-left: 8px;
+  color: var(--sun);
+  font-weight: 800;
+  text-decoration: underline;
+}
 .pin-input {
   letter-spacing: 12px;
   text-align: center;
@@ -802,6 +809,37 @@ textarea:focus {
   min-width: 28px;
   text-align: right;
   font-variant-numeric: tabular-nums;
+}
+
+/* settlement receipt on a settled bet: how it resolved + on-chain proof */
+.receipt {
+  margin-top: 12px;
+  background: rgba(47, 111, 208, 0.06);
+  border: 2px solid rgba(47, 111, 208, 0.25);
+  border-radius: 12px;
+  padding: 10px 12px;
+}
+.receipt-h {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--accent);
+  margin-bottom: 4px;
+}
+.receipt-why {
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--tg-text);
+}
+.receipt-tx {
+  display: inline-block;
+  margin-top: 6px;
+  color: var(--accent);
+  font-weight: 700;
+  font-size: 12.5px;
+  text-decoration: none;
 }
 
 @media (prefers-reduced-motion: reduce) {

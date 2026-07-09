@@ -19,6 +19,14 @@ export function pickLabel(o: Outcome, m?: Match): string {
   }
 }
 
+/** A BaseScan tx receipt link for a toast, or undefined if we can't build one. */
+export function txLink(
+  explorer: string | undefined,
+  hash?: string,
+): { href: string; label: string } | undefined {
+  return explorer && hash ? { href: `${explorer}/tx/${hash}`, label: 'View on BaseScan ↗' } : undefined;
+}
+
 export function shortAddr(a?: string | null): string {
   if (!a) return '';
   return `${a.slice(0, 6)}…${a.slice(-4)}`;

@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { Match, Outcome, toBaseUnits } from '@mimic/shared';
 import { useApp } from '../state';
-import { useAction } from '../ui';
+import { useAction, useToast } from '../ui';
 import { api } from '../lib/api';
-import { pickLabel, kickoffLabel } from '../lib/format';
+import { pickLabel, kickoffLabel, txLink } from '../lib/format';
 
 const STAKES = ['5', '10', '25', '50'];
 
@@ -16,8 +16,9 @@ export function CreateChallenge({
   onDone: () => void;
   initialPick?: Outcome | null;
 }) {
-  const { wallet } = useApp();
+  const { wallet, config } = useApp();
   const { pending, run } = useAction();
+  const toast = useToast();
   const [pick, setPick] = useState<Outcome | null>(initialPick);
   const [stake, setStake] = useState('10');
   const [opponent, setOpponent] = useState('');
@@ -35,7 +36,7 @@ export function CreateChallenge({
           throw new Error(`@${uname} hasn't opened Mimic yet — leave blank for an open bet`);
         }
       }
-      await wallet!.createChallenge({
+      const hash = await wallet!.createChallenge({
         matchId: match.id,
         kickoff: Math.floor(new Date(match.utcKickoff).getTime() / 1000),
         pick: pick!,
@@ -43,7 +44,8 @@ export function CreateChallenge({
         opponent: opponentAddr,
       });
       onDone();
-    }, 'Challenge posted!').catch((e) => setErr((e as Error).message));
+      return hash;
+    }).then((hash) => hash && toast('Prediction posted!', 'ok', txLink(config?.explorer, hash)));
 
   return (
     <div>

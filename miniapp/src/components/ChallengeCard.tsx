@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Challenge, ChallengeStatus, Outcome } from '@mimic/shared';
 import { useApp } from '../state';
-import { useAction } from '../ui';
+import { useAction, useToast } from '../ui';
 import {
   pickLabel,
   usdt,
@@ -11,6 +11,7 @@ import {
   avatarGradient,
   avatarInitial,
   withFlag,
+  txLink,
 } from '../lib/format';
 import { celebrate } from '../lib/confetti';
 
@@ -28,6 +29,7 @@ export function ChallengeCard({ c, onChanged }: { c: Challenge; onChanged: () =>
   const { wallet, config } = useApp();
   const explorer = config?.explorer;
   const { pending, run } = useAction();
+  const toast = useToast();
   const [takerPick, setTakerPick] = useState<Outcome | null>(null);
   const me = wallet?.address.toLowerCase();
   const isCreator = me === c.creator.toLowerCase();
@@ -102,7 +104,11 @@ export function ChallengeCard({ c, onChanged }: { c: Challenge; onChanged: () =>
             style={{ marginTop: expired ? 8 : 12 }}
             disabled={pending}
             onClick={() =>
-              run(async () => (await wallet!.cancel(c.id), onChanged()), expired ? 'Stake reclaimed' : 'Cancelled & refunded')
+              run(async () => {
+                const h = await wallet!.cancel(c.id);
+                onChanged();
+                return h;
+              }).then((h) => h && toast(expired ? 'Stake reclaimed' : 'Cancelled & refunded', 'ok', txLink(explorer, h)))
             }
           >
             {pending ? '…' : expired ? 'Reclaim stake' : 'Cancel & refund'}
@@ -137,9 +143,10 @@ export function ChallengeCard({ c, onChanged }: { c: Challenge; onChanged: () =>
             disabled={pending || takerPick == null}
             onClick={() =>
               run(async () => {
-                await wallet!.acceptChallenge(c.id, takerPick!, stake);
+                const h = await wallet!.acceptChallenge(c.id, takerPick!, stake);
                 onChanged();
-              }, `Bet on! ${usdt(stake)} USDt locked`)
+                return h;
+              }).then((h) => h && toast(`Bet on! ${usdt(stake)} USDt locked`, 'ok', txLink(explorer, h)))
             }
           >
             {pending ? 'Locking stake…' : `Accept · stake ${usdt(stake)} USDt`}
@@ -159,14 +166,12 @@ export function ChallengeCard({ c, onChanged }: { c: Challenge; onChanged: () =>
             style={{ marginTop: 12 }}
             disabled={pending}
             onClick={() =>
-              run(
-                async () => {
-                  await wallet!.claim(c.id);
-                  if (iWon) celebrate();
-                  onChanged();
-                },
-                iWon ? 'You won! 🎉' : 'Settled',
-              )
+              run(async () => {
+                const h = await wallet!.claim(c.id);
+                if (iWon) celebrate();
+                onChanged();
+                return h;
+              }).then((h) => h && toast(iWon ? 'You won! 🎉' : 'Settled', 'ok', txLink(explorer, h)))
             }
           >
             {iWon ? 'Claim winnings 🏆' : 'Claim'}
@@ -174,9 +179,10 @@ export function ChallengeCard({ c, onChanged }: { c: Challenge; onChanged: () =>
         ))}
 
       {c.status === ChallengeStatus.Settled && (c.aiRationale || c.resolveTxHash) && (
-        <div className="hint" style={{ marginTop: 10 }}>
+        <div className="receipt">
+          <div className="receipt-h">🧾 How this settled</div>
           {c.aiRationale && (
-            <div>
+            <div className="receipt-why">
               {c.resolvedByAi ? '🤖 ' : ''}
               {c.aiRationale}
               {c.aiSource ? ` · ${c.aiSource}` : ''}
@@ -184,12 +190,12 @@ export function ChallengeCard({ c, onChanged }: { c: Challenge; onChanged: () =>
           )}
           {c.resolveTxHash && explorer && (
             <a
+              className="receipt-tx"
               href={`${explorer}/tx/${c.resolveTxHash}`}
               target="_blank"
               rel="noreferrer"
-              style={{ color: 'var(--accent)', marginTop: 4, display: 'inline-block' }}
             >
-              🔗 Resolved on-chain — view on BaseScan
+              🔗 Resolved on-chain — view on BaseScan ↗
             </a>
           )}
         </div>
