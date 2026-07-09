@@ -37,3 +37,4 @@ npm-debug.log*
 
 # runtime data (wallet links)
 backend/.data/
+.gstack/
