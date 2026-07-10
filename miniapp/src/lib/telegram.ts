@@ -44,6 +44,7 @@ export function startParam(): {
   id?: number;
   arg?: string;
   pick?: string;
+  q?: string; // decoded prop question, for action 'prop'
 } | null {
   const p =
     tg()?.initDataUnsafe?.start_param ||
@@ -51,8 +52,27 @@ export function startParam(): {
     new URLSearchParams(window.location.hash.replace(/^#/, '')).get('tgWebAppStartParam') ||
     '';
   if (!p) return null;
+  // prop_<matchId>_<base64url question> — matchId is numeric, question may contain
+  // the split char, so parse it specially.
+  if (p.startsWith('prop_')) {
+    const rest = p.slice('prop_'.length);
+    const us = rest.indexOf('_');
+    const arg = us >= 0 ? rest.slice(0, us) : rest;
+    const q = us >= 0 ? b64urlDecode(rest.slice(us + 1)) : '';
+    return { action: 'prop', arg, q, id: /^\d+$/.test(arg) ? Number(arg) : undefined };
+  }
   const [action, arg = '', pick] = p.split('_');
   return { action, arg, pick, id: arg && /^\d+$/.test(arg) ? Number(arg) : undefined };
+}
+
+function b64urlDecode(s: string): string {
+  try {
+    const b64 = s.replace(/-/g, '+').replace(/_/g, '/');
+    const pad = b64 + '==='.slice((b64.length + 3) % 4);
+    return decodeURIComponent(escape(atob(pad)));
+  } catch {
+    return '';
+  }
 }
 
 export function haptic(type: 'success' | 'error' | 'light' = 'light'): void {

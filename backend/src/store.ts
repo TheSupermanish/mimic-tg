@@ -1,4 +1,4 @@
-import { Challenge, UserWalletLink } from '@mimic/shared';
+import { Challenge, Match, UserWalletLink } from '@mimic/shared';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { readFileSync, writeFileSync, mkdirSync } from 'fs';
@@ -118,4 +118,69 @@ export function setResolution(r: ResolutionRecord): void {
 
 export function getResolution(matchId: string): ResolutionRecord | undefined {
   return resolutionByMatchId.get(matchId);
+}
+
+// ─── Prop markets ("bet on anything", rebuilt by the prop indexer) ──────────
+
+/** A YES/NO prop, enriched with fixture + identity info. status/result mirror
+ * the on-chain enums: status 0 Open,1 Matched,2 Settled,3 Cancelled;
+ * result 0 Pending,1 Yes,2 No,3 Void. */
+export interface Prop {
+  id: number;
+  question: string;
+  matchId: string;
+  creator: string;
+  opponent: string | null;
+  taker: string | null;
+  stake: string;
+  creatorBacksYes: boolean;
+  result: number;
+  status: number;
+  resolveBy: number;
+  creatorTgUsername?: string;
+  opponentTgUsername?: string;
+  match?: Match;
+  aiRationale?: string;
+  aiSource?: string;
+  resolveTxHash?: string;
+}
+
+let props: Map<number, Prop> = new Map();
+export function setProps(list: Prop[]): void {
+  props = new Map(list.map((p) => [p.id, p]));
+}
+export function getProp(id: number): Prop | undefined {
+  return props.get(id);
+}
+export function allProps(): Prop[] {
+  return [...props.values()].sort((a, b) => b.id - a.id);
+}
+
+export interface PropResolution {
+  id: number;
+  rationale: string;
+  source: string;
+  confidence: number;
+  result: number; // Yes=1, No=2, Void=3
+  resolveTxHash?: string;
+}
+const PROP_RES_FILE = resolve(__dirname, '../.data/prop-resolutions.json');
+const propResById = new Map<number, PropResolution>();
+try {
+  for (const r of JSON.parse(readFileSync(PROP_RES_FILE, 'utf8')) as PropResolution[])
+    propResById.set(r.id, r);
+} catch {
+  /* none yet */
+}
+export function setPropResolution(r: PropResolution): void {
+  propResById.set(r.id, r);
+  try {
+    mkdirSync(dirname(PROP_RES_FILE), { recursive: true });
+    writeFileSync(PROP_RES_FILE, JSON.stringify([...propResById.values()]));
+  } catch (e) {
+    console.warn('[store] persist prop resolutions failed:', (e as Error).message);
+  }
+}
+export function getPropResolution(id: number): PropResolution | undefined {
+  return propResById.get(id);
 }

@@ -1,6 +1,7 @@
 import { JsonRpcProvider, Contract, Wallet, Interface } from 'ethers';
 import { config } from './config.js';
 import PredictionMarketAbi from '@mimic/shared/src/deployed/abis/PredictionMarket.json' with { type: 'json' };
+import PropMarketAbi from '@mimic/shared/src/deployed/abis/PropMarket.json' with { type: 'json' };
 
 // staticNetwork: the chain never changes, so don't let ethers re-fetch
 // eth_chainId on every call (that spam was tripping the public RPC's rate limit).
@@ -21,6 +22,19 @@ export function marketResolver(): Contract | null {
   if (!config.resolverPrivateKey || !config.predictionMarketAddress) return null;
   const wallet = new Wallet(config.resolverPrivateKey, provider);
   return new Contract(config.predictionMarketAddress, PredictionMarketAbi as any, wallet);
+}
+
+/** Read-only PropMarket contract (indexing, views). */
+export function propReader(): Contract | null {
+  if (!config.propMarketAddress) return null;
+  return new Contract(config.propMarketAddress, PropMarketAbi as any, provider);
+}
+
+/** Resolver-signing PropMarket contract (settles YES/NO/VOID). */
+export function propResolver(): Contract | null {
+  if (!config.resolverPrivateKey || !config.propMarketAddress) return null;
+  const wallet = new Wallet(config.resolverPrivateKey, provider);
+  return new Contract(config.propMarketAddress, PropMarketAbi as any, wallet);
 }
 
 /**

@@ -9,6 +9,7 @@ import { Markets } from './components/Markets';
 import { MyBets } from './components/MyBets';
 import { ChallengeCard } from './components/ChallengeCard';
 import { CreateChallenge } from './components/CreateChallenge';
+import { CreateProp } from './components/CreateProp';
 import { startParam } from './lib/telegram';
 import { api } from './lib/api';
 
@@ -54,6 +55,8 @@ function Main() {
   const [focused, setFocused] = useState<Challenge | null>(null);
   const [betMatch, setBetMatch] = useState<Match | null>(null);
   const [betPick, setBetPick] = useState<Outcome | null>(null);
+  const [propMatch, setPropMatch] = useState<Match | null>(null);
+  const [propQ, setPropQ] = useState('');
 
   // handle deep links: accept_<challengeId>, bet_<matchId>, bet_<matchId>_<pick>
   useEffect(() => {
@@ -70,6 +73,9 @@ function Main() {
       };
       if (sp.pick && pickMap[sp.pick]) setBetPick(pickMap[sp.pick]);
       api.match(sp.arg).then(setBetMatch).catch(() => {});
+    } else if (sp.action === 'prop' && sp.arg) {
+      setPropQ(sp.q ?? '');
+      api.match(sp.arg).then(setPropMatch).catch(() => {});
     }
   }, []);
 
@@ -79,6 +85,16 @@ function Main() {
       <div className="app">
         <WalletHeader />
         <CreateChallenge match={betMatch} initialPick={betPick} onDone={() => setBetMatch(null)} />
+      </div>
+    );
+  }
+
+  // a prop deep-link opens the "bet on anything" screen, question pre-filled
+  if (propMatch) {
+    return (
+      <div className="app">
+        <WalletHeader />
+        <CreateProp match={propMatch} initialQuestion={propQ} onDone={() => setPropMatch(null)} />
       </div>
     );
   }

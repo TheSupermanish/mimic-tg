@@ -842,6 +842,102 @@ textarea:focus {
   text-decoration: none;
 }
 
+/* ── props ("bet on anything") ────────────────────────────── */
+.yes {
+  color: var(--pitch);
+}
+.no {
+  color: var(--danger);
+}
+.prop-q {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 16px;
+  margin: 10px 0 2px;
+  line-height: 1.2;
+}
+.templates {
+  display: flex;
+  gap: 7px;
+  flex-wrap: wrap;
+  margin: 10px 0 4px;
+}
+.tpl {
+  font-size: 12px;
+  font-weight: 700;
+  padding: 8px 11px;
+  border-radius: 999px;
+  background: #eaf7ee;
+  border: 2px solid var(--ink);
+  box-shadow: 2px 2px 0 var(--ink);
+  cursor: pointer;
+}
+.tpl.on {
+  background: var(--sun);
+}
+.yn {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 9px;
+  margin: 8px 0;
+}
+.ynbtn {
+  font-family: var(--font-display);
+  font-weight: 700;
+  text-transform: uppercase;
+  font-size: 18px;
+  padding: 14px 0;
+  border-radius: 14px;
+  border: 2.5px solid var(--ink);
+  background: #ffffff;
+  color: var(--ink);
+  cursor: pointer;
+  box-shadow: 3px 4px 0 var(--ink);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  transition: transform 0.06s, box-shadow 0.06s;
+}
+.ynbtn:active {
+  transform: translate(3px, 4px);
+  box-shadow: 0 0 0 var(--ink);
+}
+.ynbtn small {
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: 11px;
+  color: var(--tg-hint);
+  margin-top: 2px;
+  text-transform: none;
+}
+.ynbtn.yes.sel {
+  background: var(--pitch-fill);
+  color: #ffffff;
+}
+.ynbtn.no.sel {
+  background: var(--danger);
+  color: #ffffff;
+}
+.ynbtn.sel small {
+  color: rgba(255, 255, 255, 0.85);
+}
+.ai-note {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  font-size: 12px;
+  color: var(--tg-hint);
+  background: rgba(47, 111, 208, 0.06);
+  border: 2px solid rgba(47, 111, 208, 0.22);
+  border-radius: 12px;
+  padding: 10px 12px;
+  margin: 12px 0;
+  line-height: 1.5;
+}
+.ai-note b {
+  color: var(--accent);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .hero .logo,
   .pill.live,

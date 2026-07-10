@@ -86,6 +86,14 @@ bot.command('start', async (ctx) => {
     );
     return;
   }
+  // prop_<matchId>_<b64question> — from a group "set up prop" button.
+  if (payload?.startsWith('prop_')) {
+    await ctx.reply(
+      `🎲 Ready to set up your side bet — tap below to post it. AI-settled, gasless, winner takes the pot. 👇`,
+      { reply_markup: launchButton(ctx, '🎲 Set up prop', payload) },
+    );
+    return;
+  }
   // bet_<matchId> or bet_<matchId>_<home|draw|away> — from a group bet button.
   if (payload?.startsWith('bet_') || payload?.startsWith('create')) {
     const [, matchId, pick] = payload.split('_');
@@ -295,13 +303,26 @@ bot.on('message:text', async (ctx) => {
     // directed challenge: [[CHALLENGE:@target:matchId:PICK]] — the AI is calling out
     // a specific person; offer THEM the opposing sides to take.
     const chMatch = raw.match(/\[\[CHALLENGE:@?([A-Za-z0-9_]+):(\d+):(HOME|DRAW|AWAY)\]\]/i);
+    // prop bet ("bet on anything") — a free-text YES/NO market; takes precedence.
+    const propMatch = raw.match(/\[\[PROP:(?:@?[A-Za-z0-9_]+:)?(\d+):([^\]]+)\]\]/i);
     // otherwise, optional one-tap bet marker for the sender.
-    const betMatch = !chMatch && raw.match(/\[\[BET:(\d+)(?::(HOME|DRAW|AWAY))?\]\]/i);
-    const answer = raw.replace(/\[\[(?:BET|CHALLENGE):[^\]]*\]\]/g, '').trim() || '⚽️';
+    const betMatch = !chMatch && !propMatch && raw.match(/\[\[BET:(\d+)(?::(HOME|DRAW|AWAY))?\]\]/i);
+    const answer = raw.replace(/\[\[(?:BET|CHALLENGE|PROP):[^\]]*\]\]/g, '').trim() || '⚽️';
 
     let reply_markup: InlineKeyboard | undefined;
     let logNote = '';
-    if (chMatch) {
+    if (propMatch) {
+      // "bet on anything": deep-link to the prop create flow, question pre-filled.
+      const [, matchId, question] = propMatch;
+      const q = question.trim();
+      const b64 = Buffer.from(q, 'utf8')
+        .toString('base64')
+        .replace(/\+/g, '-')
+        .replace(/\//g, '_')
+        .replace(/=+$/, '');
+      reply_markup = launchButton(ctx, `🎲 Set up: ${q.slice(0, 38)}`, `prop_${matchId}_${b64}`);
+      logNote = ` +prop(${matchId})`;
+    } else if (chMatch) {
       const [, , matchId, pickRaw] = chMatch;
       const pick = pickRaw.toUpperCase();
       const m = (await api.matches()).find((x) => x.id === matchId);

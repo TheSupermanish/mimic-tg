@@ -7,7 +7,17 @@ import { startFactsWorker, getRecentFacts, factsFor } from './match-facts.js';
 import { startIndexer } from './indexer.js';
 import { startResolver } from './resolver.js';
 import { verifyInitData } from './auth.js';
-import { linkWallet, getLinkByUsername, allChallenges, getChallenge, tgIdFor } from './store.js';
+import {
+  linkWallet,
+  getLinkByUsername,
+  allChallenges,
+  getChallenge,
+  allProps,
+  getProp,
+  tgIdFor,
+} from './store.js';
+import { startPropIndexer } from './prop-indexer.js';
+import { startPropResolver } from './prop-resolver.js';
 import { notify } from './notify.js';
 
 const app = Fastify({ logger: true });
@@ -71,6 +81,35 @@ app.get<{ Params: { id: string } }>('/markets/:id', async (req, reply) => {
   return c;
 });
 
+// Prop markets ("bet on anything"), same filters as /markets. status: open|matched|settled.
+app.get<{ Querystring: { status?: string; address?: string; matchId?: string } }>(
+  '/props',
+  async (req) => {
+    let list = allProps();
+    const { status, address, matchId } = req.query;
+    if (status === 'open') list = list.filter((p) => p.status === 0);
+    if (status === 'matched') list = list.filter((p) => p.status === 1);
+    if (status === 'settled') list = list.filter((p) => p.status === 2);
+    if (matchId) list = list.filter((p) => p.matchId === matchId);
+    if (address) {
+      const a = address.toLowerCase();
+      list = list.filter(
+        (p) =>
+          p.creator.toLowerCase() === a ||
+          p.taker?.toLowerCase() === a ||
+          p.opponent?.toLowerCase() === a,
+      );
+    }
+    return { props: list };
+  },
+);
+
+app.get<{ Params: { id: string } }>('/props/:id', async (req, reply) => {
+  const p = getProp(Number(req.params.id));
+  if (!p) return reply.code(404).send({ error: 'not found' });
+  return p;
+});
+
 // Social leaderboard — global, or scoped to ?addresses=0x..,0x.. (a group's members)
 app.get<{ Querystring: { addresses?: string } }>('/leaderboard', async (req) => {
   const { leaderboard } = await import('./leaderboard.js');
@@ -132,6 +171,8 @@ app.post<{ Body: { matchId: string; outcome: Outcome } }>('/admin/resolve', asyn
 // ─── Background workers ────────────────────────────────────────────────────
 assertConfig(['footballApiKey', 'predictionMarketAddress', 'botToken']);
 startIndexer();
+startPropIndexer(); // index PropMarket ("bet on anything")
+startPropResolver(); // grounded YES/NO settlement for props (void-on-uncertain)
 startFactsWorker(); // grounded goalscorer enrichment (chat colour only)
 startResolver(30_000, (e) => {
   // notify both sides of a settlement

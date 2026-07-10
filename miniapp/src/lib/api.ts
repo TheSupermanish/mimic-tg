@@ -18,6 +18,26 @@ export interface AppConfig {
   gasless: GaslessConfig | null;
 }
 
+export interface Prop {
+  id: number;
+  question: string;
+  matchId: string;
+  creator: string;
+  opponent: string | null;
+  taker: string | null;
+  stake: string;
+  creatorBacksYes: boolean;
+  result: number; // 0 Pending, 1 Yes, 2 No, 3 Void
+  status: number; // 0 Open, 1 Matched, 2 Settled, 3 Cancelled
+  resolveBy: number;
+  creatorTgUsername?: string;
+  opponentTgUsername?: string;
+  match?: Match;
+  aiRationale?: string;
+  aiSource?: string;
+  resolveTxHash?: string;
+}
+
 export interface MatchFacts {
   matchId: string;
   summary: string; // scorers/events (played) or form + H2H (upcoming), grounded
@@ -66,6 +86,8 @@ export const api = {
     get<Insights>('/insights').catch(() => ({ competitions: [], matches: [] }) as Insights),
   markets: (q = '') => get<{ challenges: Challenge[] }>(`/markets${q}`).then((r) => r.challenges),
   market: (id: number) => get<Challenge>(`/markets/${id}`),
+  props: (q = '') => get<{ props: Prop[] }>(`/props${q}`).then((r) => r.props).catch(() => []),
+  prop: (id: number) => get<Prop>(`/props/${id}`),
   resolveUsername: (username: string) =>
     get<{ username: string; address: string }>(`/users/${encodeURIComponent(username)}`),
   auth: (initData: string, address: string) =>
