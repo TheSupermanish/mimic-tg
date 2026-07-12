@@ -72,6 +72,25 @@ function persist(): void {
   }
 }
 
+/** Strip Google-Search-grounding artifacts (citations, brackets, dupes, markdown). */
+function cleanGrounded(text: string): string {
+  let t = text
+    .replace(/\[cite[^\]]*\]?/gi, '') // [cite: 1], and truncated "[cite: 1"
+    .replace(/\[\d+(?:\s*,\s*\d+)*\]/g, '') // [1], [2, 3]
+    .replace(/\((?:https?:\/\/|source:)[^)]*\)/gi, '') // (source: ...) / (http...)
+    .replace(/\*\*/g, '') // markdown bold
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+  // grounded output sometimes repeats the whole answer twice back-to-back —
+  // if the second half duplicates the first, keep just the first.
+  const half = Math.floor(t.length / 2);
+  if (t.length > 40 && t.slice(0, half).trim() && t.slice(half).trim().startsWith(t.slice(0, 20).trim())) {
+    t = t.slice(0, half).trim();
+  }
+  return t;
+}
+
 /** Retry a grounded call on transient 429 / RESOURCE_EXHAUSTED with backoff. */
 async function withRetry<T>(fn: () => Promise<T>, tries = 3): Promise<T> {
   for (let i = 0; ; i++) {
@@ -130,20 +149,31 @@ async function enrich(m: Match): Promise<void> {
         `Cover recent form (last 5 results) for each team, their historical head-to-head, and 1-2 key players to watch. ` +
         `Use web search and general football knowledge. Do NOT predict or invent the result of this specific upcoming match. ` +
         `Keep it factual, max 5 short lines. Only reply NO_DATA if you genuinely know nothing about these teams.`
-      : `Search the web for this exact real football match: ${m.homeTeam} vs ${m.awayTeam}, ` +
-        `${m.competition}, on ${date}, ${m.status === 'FINISHED' ? `final score ${score}` : `currently ${score}`}. ` +
-        `List the goalscorers for each team (with minute if known), plus one short line of context ` +
-        `(stage / notable events). Be factual and concise, max 4 lines. Do not invent names — ` +
-        `if you genuinely cannot find this specific match, reply with exactly NO_DATA.`;
+      : [
+          `Real football match: ${m.homeTeam} vs ${m.awayTeam} — ${m.competition}, ${date}.`,
+          m.status === 'FINISHED' ? `Final score: ${m.homeTeam} ${score} ${m.awayTeam}.` : `Live, currently ${score}.`,
+          `Search the web and report the facts. Do NOT invent anything.`,
+          `Reply in EXACTLY this plain-text format, nothing else:`,
+          `<one sentence: the result and how it went — stage, and if it went to extra time / penalties>`,
+          `Goalscorers:`,
+          `- ${m.homeTeam}: <Player> <min>', <Player> <min>'   (or "none")`,
+          `- ${m.awayTeam}: <Player> <min>', <Player> <min>'   (or "none")`,
+          `Rules: plain text only. NO markdown, NO asterisks, NO citation markers like [1] or [cite: ...], NO source links.`,
+          `If you genuinely cannot find this specific match, reply with exactly: NO_DATA`,
+        ].join('\n');
     const r = await withRetry(() =>
       ai.models.generateContent({
         model: config.geminiModel,
         contents: prompt,
-        config: { tools: [{ googleSearch: {} }], maxOutputTokens: 450 },
+        config: { tools: [{ googleSearch: {} }], temperature: 0, maxOutputTokens: 450 },
       }),
     );
-    const text = (r.text ?? '').trim();
-    const grounded = text.length > 0 && !/^NO_DATA/i.test(text);
+    const text = cleanGrounded((r.text ?? '').trim());
+    // Result facts must actually carry a Goalscorers block to count as grounded
+    // (otherwise retry); previews just need real, non-empty content.
+    const grounded = preview
+      ? text.length > 15 && !/^NO_DATA/i.test(text)
+      : text.length > 15 && !/^NO_DATA/i.test(text) && /goalscorer/i.test(text);
     facts.set(m.id, {
       matchId: m.id,
       teams: `${m.homeTeam} vs ${m.awayTeam}`,
