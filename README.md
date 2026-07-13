@@ -15,6 +15,54 @@ It's the 80th minute and the group chat is melting down. Someone types _"Argenti
 - **A witty AI football brain:** @mention the bot for live scores, standings, top scorers, and real goalscorers grounded from live web search. Say "bet @sam 10 on Spain" and it pings Sam directly with a one-tap button to take the other side.
 - **Telegram-native:** a Mini App for the wallet and betting UI, and a bot for invites, deep-link accepts, directed-challenge DMs, and settlement notifications.
 
+## Updates — July 12, 2026
+
+### 🎲 Bet on anything (AI-settled prop markets)
+
+Match-outcome bets (home/draw/away) are great, but the group chat argues about _everything_:
+"Messi scores tonight", "over 2.5 goals", "someone sees red". So we added **prop markets** — a
+peer-to-peer **YES/NO** escrow for any freeform claim about a fixture, settled by the same grounded
+AI oracle that can honestly say _"couldn't verify"_ and hand everyone their money back.
+
+**Example.** In the Mini App: **Fixtures → tap a match → Bet on anything**, type _"Lionel Messi to
+score"_, pick **YES**, stake **10 USDt**, and leave it open (or aim it at `@sam`). Sam opens it and
+takes **NO** for a matching 10. When the match finishes the resolver web-searches the real result:
+Messi scored → YES wins the **20 USDt** pot; he didn't → NO wins it; can't be confirmed → **void,
+both stakes refunded**.
+
+**How it works**
+
+1. **Create** — the creator poses a `question` on a fixture, picks a side (YES/NO), sets a stake, and
+   escrows it in the `PropMarket` contract. `resolveBy` is auto-set to kickoff + 3h. Open to anyone,
+   or directed at one `@username`.
+2. **Accept** — the taker automatically gets the **opposite** side and escrows an equal stake; the pot
+   locks at 2x. Both players get a Telegram nudge.
+3. **Settle** — once the match is `FINISHED` and past `resolveBy`, a resolver worker asks Gemini (with
+   Google Search grounding) for a `YES / NO / UNKNOWN` verdict + confidence. Confidence ≥ 0.6 resolves
+   the market on-chain; anything less returns **VOID**. Then settlement is triggered, the winner (or
+   both, on void) is paid, and each side gets a notification with the AI's one-line rationale.
+4. **Refunds** — an unmatched prop can be cancelled (or reclaimed after it expires) by its creator.
+
+**From the group chat, too.** @mention the bot with a hunch ("reckon there's a red card in the derby")
+and the AI football brain replies with banter _and_ a one-tap **🎲 Set up prop** button that deep-links
+into the create flow with the question pre-filled.
+
+Prop markets are a sibling of the deterministic match-outcome escrow, not a replacement: `PredictionMarket`
+still settles clean home/draw/away bets from the authoritative football-data result, while `PropMarket`
+handles the freeform long tail via the AI oracle.
+
+### Other polish shipped this week
+
+- **On-chain receipts** — every action (faucet, bet, accept, claim) surfaces a real BaseScan tx link,
+  and settled markets show a "how this resolved" receipt with the resolver tx.
+- **Real tx hashes in gasless mode** — we now show the mined bundler transaction, not the UserOp hash,
+  so BaseScan links actually resolve.
+- **Match detail + stats**, a "Sticker Book" UI redesign with win confetti, national-team flags, and a
+  rounded typeface.
+- **Brand:** dropped the redundant `TG` suffix — it's just **Mimic** now.
+- **Reliable goalscorers** (Jul 12) — the AI football brain now strips citation noise and enforces a
+  clean `name (minute)` format on the result path.
+
 ## Architecture
 
 ```
@@ -31,7 +79,7 @@ Custody boundary: **funds live in the contract, keys live in the Mini App.** The
 
 | Package      | What it is                                                        |
 | ------------ | ----------------------------------------------------------------- |
-| `contracts/` | Hardhat — `MockUSDT` (testnet USDt) + `PredictionMarket` escrow    |
+| `contracts/` | Hardhat — `MockUSDT` + `PredictionMarket` (match) + `PropMarket` (props) |
 | `shared/`    | Types, chain config, USDt unit helpers, deployed addresses + ABIs |
 | `backend/`   | Fastify API — fixtures, market index, initData auth, resolver     |
 | `bot/`       | grammY Telegram bot — launch Mini App, deep links, notifications  |
@@ -57,7 +105,7 @@ Environment (`.env`):
 ### Contracts
 
 ```bash
-npm run test:contracts       # full lifecycle tests (13 passing)
+npm run test:contracts       # full lifecycle tests (20 passing)
 npm run deploy:contracts     # deploy to Base Sepolia → writes shared/src/deployed/addresses.json + ABIs
 ```
 
