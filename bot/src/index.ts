@@ -86,6 +86,15 @@ bot.command('start', async (ctx) => {
     );
     return;
   }
+  // viewprop_<propId> — from the "your prop is on" settlement notification; just
+  // open Mimic (My Bets) to track an existing, already-matched prop.
+  if (payload?.startsWith('viewprop_')) {
+    await ctx.reply(
+      `🔒 Your side bet is locked in — open Mimic to track it. It settles automatically after the match. ⚽️`,
+      { reply_markup: launchButton(ctx, '🎟️ Track your prop', payload) },
+    );
+    return;
+  }
   // prop_<matchId>_<b64question> — from a group "set up prop" button.
   if (payload?.startsWith('prop_')) {
     await ctx.reply(
