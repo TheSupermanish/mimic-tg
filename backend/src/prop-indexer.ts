@@ -11,7 +11,7 @@ function notifyPropAccepted(p: Prop): void {
   const stake = fromBaseUnits(BigInt(p.stake));
   const pot = fromBaseUnits(BigInt(p.stake) * 2n);
   const btn = config.botUsername
-    ? { text: '🎟️ View your prop', url: `https://t.me/${config.botUsername}?start=prop_${p.id}` }
+    ? { text: '🎟️ Track your prop', url: `https://t.me/${config.botUsername}?start=viewprop_${p.id}` }
     : undefined;
   const creatorTg = tgIdFor(p.creator);
   if (creatorTg)

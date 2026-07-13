@@ -76,6 +76,9 @@ function Main() {
     } else if (sp.action === 'prop' && sp.arg) {
       setPropQ(sp.q ?? '');
       api.match(sp.arg).then(setPropMatch).catch(() => {});
+    } else if (sp.action === 'viewprop') {
+      // an accepted-prop notification — the prop already lives under My Bets
+      setTab('bets');
     }
   }, []);
 
